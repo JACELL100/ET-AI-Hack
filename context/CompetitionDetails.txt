@@ -1,0 +1,218 @@
+
+Practice
+Scholarships
+Cultural Events
+Workshops
+Conferences
+Articles
+Your Dashboards
+User avatar icon
+Jason James Gonsalves
+ET AI Hackathon 2.0
+Stages & Timeline
+Details
+Prizes
+Reviews
+FAQs & Discussions
+Participate in the ET AI Hackathon 2.0 before  2026-06-11T23:59:56+05:30
+Need Attention
+colored_location
+Online
+ET AI Hackathon 2.0
+Economic Times
+Team Size
+1 - 4 Members
+Registration Deadline
+11 Jun 26, 11:59 PM IST
+Hackathon
+Applied AI
+ET AI Hackathon 2.0 / competitions
+Pre-Placement Interviews
+& Prizes worth
+₹ 10,00,000
+Prize Icon
+Eligibility
+Everyone can apply
+Stages and Timelines
+16
+Apr
+16 Apr 26, 05:15 PM IST
+--> 12 Jun 26, 11:59 PM IST
+Phase 1: Online Qualifier – MCQ
+Participants will begin with an online AI-proctored MCQ assessment designed to evaluate their understanding of AI concepts and problem-solving ability.
+
+
+Results
+22
+Jun
+22 Jun 26, 12:11 PM IST
+--> 22 Jul 26, 11:59 PM IST
+Phase 2: Build Sprint - Prototype Submission
+Shortlisted teams will enter an intensive build phase to develop a working AI solution. Problem statements will be revealed along with the results of Round 1, and each team must choose one to work on.
+
+Teams are expected to design and build a functional prototype that effectively addresses their selected problem.
+
+
+Live
+Brief/Case
+Submit
+Phase 3: Finale
+Top teams present their solutions to a panel of industry experts in a 10–15 minute session, followed by a live demo and Q&A with the jury. Teams will be evaluated on innovation, business impact, execution quality, and scalability.
+
+
+All that you need to know about ET AI Hackathon 2.0
+Note: The Phase 1 results will be announced on 22nd June before 3:00 PM
+
+The ET AI Hackathon 2.0, in partnership with Unstop, is a nation-scale innovation challenge designed to discover and celebrate India’s brightest emerging AI talent. Building on the success of its first edition, this flagship platform brings together the country’s sharpest minds to solve real-world AI problem statements across business innovation, social impact, and open innovation domains.
+
+Across a multi-phase journey, beginning with an online AI assessment, advancing into an intensive prototype build sprint, and culminating in a high-energy grand finale, participants ideate, innovate, and present transformative AI solutions.
+
+ET AI Hackathon 2.0 is where ideas evolve into impactful products, and where the next generation of AI leaders takes shape.
+
+Read more details - https://economictimes.indiatimes.com/et-ai-hackathon/2nd-edition
+
+Eligibility Criteria:
+Open to students, professionals, and AI enthusiasts across India.
+Participation allowed individually or in teams of 1-4 members
+Cross-college, cross-discipline, and cross-year teams are allowed
+Ideal for developers, designers, and product thinkers building AI solutions
+Each participant can be part of only one team
+Rules and Guidelines:
+Team formation must be completed before the Phase 1 assessment
+No changes to team members will be allowed after the deadline
+All ideas, code, documents, and assets must be original and created during the hackathon
+Plagiarism, use of pre-built projects, or unauthorized third-party material will lead to disqualification
+All submissions must be made via the Unstop platform within the given timelines
+Licensed tools/datasets may be used only with valid authorization
+Participants must ensure all submission links (GitHub, demo, docs) are public and accessible
+Participants are expected to maintain professional and ethical conduct throughout the hackathon
+Judging Criteria:
+Prototypes will be evaluated based on:
+
+Relevance to Problem Statement – How effectively the solution addresses the chosen problem
+Innovation & Creativity – Originality and problem-solving approach
+Technical Implementation – Quality of architecture, code, and use of AI
+Business Viability – Practicality and real-world applicability
+Presentation & Clarity – Effectiveness of demo, pitch, and communication
+Impact & Scalability – Potential to create meaningful impact at scale
+Final Authority:
+All decisions made by the jury will be final and binding
+The organisers reserve the right to modify rules, guidelines, or timelines if required
+Rewards & Prizes:
+Prize Pool ₹10,00,000
+Winner - ₹5,00,000
+1st Runner-Up - ₹3,00,000
+2nd Runner-Up - ₹2,00,000
+Beyond the prize money
+
+Chance to get PPIs + job & internship opportunities with leading AI-first companies
+Certificate of Participation for all participants who successfully submit in Phase 2
+National recognition across ET platforms for finalists and winners
+Direct access to industry experts, founders, and AI practitioners
+Your Hackathon Journey:
+Register on Unstop - Sign up and secure your spot. 
+Form your team - Build a team of 1-4 members with complementary skills.
+Complete the MCQ assessment - Attempt an AI-proctored assessment to test your foundational knowledge.
+Get shortlisted for Phase 2 - Qualified teams are shortlisted based on MCQ scores and notified on the platform.
+Pick your problem statement - Choose from real-world AI challenges revealed at the start of Phase 2.
+Build & submit your prototype - Develop your AI solution and submit via Unstop before the deadline.
+Final shortlist announced - Top submissions are evaluated and shortlisted for the Grand Finale.
+Present at the Grand Finale - Pitch your solution to an industry jury and compete for ₹10 Lakh+ in prizes.
+Read Less
+Rewards and Prizes
+Grab Pre-Placement Interviews/OffersGrab Pre-Placement Interviews
+₹5,00,000
+Cash
+Winner
+Certificate Icon
+Certificate
+₹3,00,000
+Cash
+1st Runner-Up
+Certificate Icon
+Certificate
+₹2,00,000
+Cash
+2nd Runner-Up
+Certificate Icon
+Certificate
+Trophy Icon
+Career Opportunities
+Pre-Placement Interview Icon
+Pre-Placement Interview
+Top-performing candidates will get the opportunity to secure Pre-Placement Interviews (PPIs), internships and Jobs from global AI-First tech companies.
+
+Trophy Icon
+Finalist
+Chance to network with experts, founders, and AI practitioners and Opportunity to present ideas to industry leaders, hiring teams, and innovators.
+
+Trophy Icon
+Certificates & Recognition
+Certificate Icon
+Certificate
+Certificate of Participation for all participants who successfully submit in Phase 2 and national recognition across ET platforms for the winners.
+
+Feedback & Rating
+4
+1 ratings
+5
+0
+4
+1
+3
+0
+2
+0
+1
+0
+Write a feedback
+Enter
+avatar
+Jason Gonsalves
+14 May 26, 11:03 AM IST
+4.0
+Frequently Asked Questions/Discussions
+FAQsDiscussions
+Registration
+Phase 1: Online Qualifier (MCQ)
+Phase 2: Build Sprint (Prototype Development)
+Phase 3: Grand Finale
+
+chevron_right
+How can I participate in this competition?
+Who can participate in this hackathon?
+
+Is registration free?
+
+Can I participate individually if I don't have a team?
+
+Is there an age limit to participate in this competition?
+
+Are there any prerequisites or eligibility criteria for participation?
+
+Can I change my team members after registering for this competition?
+How can I delete my registration from this opportunity?
+Do I need to be an AI expert to participate?
+
+How should I verify the team members?
+
+
+How can I change my team or remove a team member?
+Can't find the answer you are looking for?
+Ask a question (Be specific)
+Updated On: 07 Jul 26, 05:19 PM IST
+The data on this page gets updated every 15 minutes.
+Report An Issue
+Competition
+ET AI Hackathon 2.0
+Jason James Gonsalves
+Jason James Gonsalves
+crce.10246.ceb@gmail.com
+View Details
+Registered
+60,977
+Refer & Win
+
+Refer now
+Powered ByGo to Unstop Home page
+Best Viewed in Chrome, Opera, Mozilla, EDGE & Safari. Copyright © 2026 FLIVE Consulting Pvt Ltd - All rights reserved.
