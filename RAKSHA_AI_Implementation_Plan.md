@@ -5,7 +5,7 @@
 > **ET AI Hackathon 2.0 — Phase 2 Prototype Submission**
 > Problem Statement 6: AI for Digital Public Safety — Defeating Counterfeiting, Fraud & Digital Arrest Scams
 >
-> **Team:** Jason James Gonsalves & Team
+> **Team:** Team DotLocal
 > **Version:** 2.0 | July 2026
 > **Deadline:** 22 July 2026
 
