@@ -26,6 +26,7 @@ def main() -> None:
         port=args.port,
         reload=args.reload,
         log_level="info",
+        timeout_keep_alive=120,   # keep connections alive for slow OCR scans
     )
 
 

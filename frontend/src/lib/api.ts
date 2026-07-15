@@ -4,6 +4,7 @@ import type {
   Alert,
   SentinelAnalysisResult,
   NetraScanResult,
+  NetraScanResultExtended,
   NetraScanHistory,
   FraudCommunity,
   GraphNode,
@@ -21,7 +22,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 15_000,
+  timeout: 90_000,   // 90 s default — OCR + CV pipeline can be slow on first run
   headers: { "Content-Type": "application/json" },
 });
 
@@ -39,7 +40,7 @@ api.interceptors.response.use(
   (err) => {
     console.error("[API Error]", err?.response?.status, err?.message);
     return Promise.reject(err);
-  }
+  },
 );
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -48,7 +49,9 @@ export const healthCheck = () =>
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 export const getDashboardStats = () =>
-  api.get<ApiResponse<DashboardStats>>("/api/v1/dashboard/stats").then((r) => r.data);
+  api
+    .get<ApiResponse<DashboardStats>>("/api/v1/dashboard/stats")
+    .then((r) => r.data);
 
 export const getDashboardAlerts = () =>
   api.get<ApiResponse<Alert[]>>("/api/v1/dashboard/alerts").then((r) => r.data);
@@ -56,47 +59,102 @@ export const getDashboardAlerts = () =>
 // ── SENTINEL ──────────────────────────────────────────────────────────────────
 export const analyseText = (text: string) =>
   api
-    .post<ApiResponse<SentinelAnalysisResult>>("/api/v1/sentinel/analyse/text", { text })
+    .post<ApiResponse<SentinelAnalysisResult>>(
+      "/api/v1/sentinel/analyse/text",
+      { text },
+    )
     .then((r) => r.data);
 
 export const analyseAudio = (file: File) => {
   const form = new FormData();
   form.append("file", file);
   return api
-    .post<ApiResponse<SentinelAnalysisResult>>("/api/v1/sentinel/analyse/audio", form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    })
+    .post<ApiResponse<SentinelAnalysisResult>>(
+      "/api/v1/sentinel/analyse/audio",
+      form,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    )
     .then((r) => r.data);
 };
 
 export const checkPhoneNumber = (phone: string) =>
   api
-    .get<ApiResponse<{ risk_score: number; reports: number }>>(`/api/v1/sentinel/number/${phone}`)
+    .get<ApiResponse<{ risk_score: number; reports: number }>>(
+      `/api/v1/sentinel/number/${phone}`,
+    )
     .then((r) => r.data);
 
 export const getSentinelAlerts = () =>
   api.get<ApiResponse<Alert[]>>("/api/v1/sentinel/alerts").then((r) => r.data);
 
 // ── NETRA ─────────────────────────────────────────────────────────────────────
-export const scanCurrency = (file: File) => {
+export const scanCurrency = (file: File, denomination?: string) => {
   const form = new FormData();
   form.append("file", file);
+  const url = denomination
+    ? `/api/v1/netra/scan?denomination=${encodeURIComponent(denomination)}`
+    : "/api/v1/netra/scan";
   return api
-    .post<ApiResponse<NetraScanResult>>("/api/v1/netra/scan", form, {
+    .post<ApiResponse<NetraScanResult>>(url, form, {
       headers: { "Content-Type": "multipart/form-data" },
+      timeout: 60_000,   // 60 s — Tesseract is fast; no EasyOCR model loading
     })
     .then((r) => r.data);
 };
 
 export const getNetraStats = () =>
   api
-    .get<ApiResponse<{ total_scans: number; counterfeits: number; authentic: number }>>(
-      "/api/v1/netra/stats"
-    )
+    .get<
+      ApiResponse<{
+        total_scans: number;
+        counterfeits: number;
+        authentic: number;
+      }>
+    >("/api/v1/netra/stats")
     .then((r) => r.data);
 
 export const getNetraHistory = () =>
-  api.get<ApiResponse<NetraScanHistory[]>>("/api/v1/netra/history").then((r) => r.data);
+  api
+    .get<ApiResponse<NetraScanHistory[]>>("/api/v1/netra/history")
+    .then((r) => r.data);
+
+export const getNetraScanById = (id: string) =>
+  api
+    .get<ApiResponse<NetraScanResultExtended>>(`/api/v1/netra/scan/${id}`)
+    .then((r) => r.data);
+
+export const checkSerialNumber = (number: string) =>
+  api
+    .get<
+      ApiResponse<{
+        serial: string;
+        format_valid: boolean;
+        is_flagged: boolean;
+        risk_level: string;
+        message: string;
+      }>
+    >(`/api/v1/netra/serial/${number}`)
+    .then((r) => r.data);
+
+export const reportCounterfeit = (
+  scanId: string,
+  notes?: string,
+  lat?: number,
+  lng?: number,
+) =>
+  api
+    .post<ApiResponse<{ reported: boolean; case_id: string }>>(
+      "/api/v1/netra/report",
+      {
+        scan_id: scanId,
+        notes,
+        latitude: lat,
+        longitude: lng,
+      },
+    )
+    .then((r) => r.data);
 
 // ── JAAL ──────────────────────────────────────────────────────────────────────
 export const getJaalCommunities = () =>
@@ -106,7 +164,9 @@ export const getJaalCommunities = () =>
 
 export const getJaalGraph = (id: string) =>
   api
-    .get<ApiResponse<{ nodes: GraphNode[]; edges: GraphEdge[] }>>(`/api/v1/jaal/graph/${id}`)
+    .get<ApiResponse<{ nodes: GraphNode[]; edges: GraphEdge[] }>>(
+      `/api/v1/jaal/graph/${id}`,
+    )
     .then((r) => r.data);
 
 // ── DRISHTI ───────────────────────────────────────────────────────────────────
@@ -131,20 +191,29 @@ export const kavachChat = (message: string, sessionId: string) =>
 
 export const checkNumberSafety = (phone: string) =>
   api
-    .post<ApiResponse<{ safe: boolean; risk_score: number }>>("/api/v1/kavach/check/number", {
-      phone,
-    })
+    .post<ApiResponse<{ safe: boolean; risk_score: number }>>(
+      "/api/v1/kavach/check/number",
+      {
+        phone,
+      },
+    )
     .then((r) => r.data);
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (credentials: LoginCredentials) =>
   api
-    .post<ApiResponse<{ token: string; user: User }>>("/api/v1/auth/login", credentials)
+    .post<ApiResponse<{ token: string; user: User }>>(
+      "/api/v1/auth/login",
+      credentials,
+    )
     .then((r) => r.data);
 
 export const register = (data: RegisterData) =>
   api
-    .post<ApiResponse<{ token: string; user: User }>>("/api/v1/auth/register", data)
+    .post<ApiResponse<{ token: string; user: User }>>(
+      "/api/v1/auth/register",
+      data,
+    )
     .then((r) => r.data);
 
 export default api;

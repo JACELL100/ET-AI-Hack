@@ -59,6 +59,37 @@ export interface NetraScanResult {
   imageUrl?: string;
 }
 
+export interface NetraScanResultExtended extends NetraScanResult {
+  scan_id?: string;
+  overall_score?: number;
+  denomination_confidence?: number;
+  feature_details?: Array<{
+    name: string;
+    status: "pass" | "fail" | "warn";
+    confidence: number;
+    bounding_box?: { x: number; y: number; w: number; h: number };
+    detected: boolean;
+    detector: string;
+  }>;
+  serial_number?: {
+    extracted: string | null;
+    format_valid: boolean;
+    is_known_counterfeit_prefix: boolean;
+    is_specimen_pattern?: boolean;
+    denomination_match: boolean;
+    ocr_detected: boolean;
+  };
+  detection_reason?: string;
+  processing_time_ms?: number;
+  pipeline_version?: string;
+  banknote_score?: number;
+  image_quality?: {
+    sharpness: number;
+    edge_density: number;
+    brightness: number;
+  };
+}
+
 export interface NetraScanHistory {
   id: string;
   timestamp: string;

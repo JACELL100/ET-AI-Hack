@@ -3,6 +3,7 @@
 Uses pydantic-settings so values can be overridden via environment variables
 or a local `.env` file (see `.env.example`).
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -26,6 +27,11 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     frontend_dev_url: str = "http://localhost:3000"
+
+    # Supabase — set via environment variables or .env file
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_key: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

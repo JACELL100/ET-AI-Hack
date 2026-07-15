@@ -6,8 +6,25 @@ pydantic==2.11.4
 pydantic-settings==2.9.1
 python-multipart==0.0.20
 
-# (Planned, installed as modules are built out — commented for the basic setup)
-# httpx==0.28.1
-# python-socketio==5.12.1
-# firebase-admin==6.7.0
-# supabase==2.15.0
+# Image processing & CV
+opencv-python-headless==4.11.0.86
+Pillow>=10.4.0
+numpy>=1.26.0
+
+# YOLOv12 (Ultralytics >= 8.3 supports YOLOv12)
+ultralytics>=8.3.0
+
+# Supabase
+supabase==2.15.0
+httpx==0.28.1
+
+# OCR — SPECIMEN & serial-number detection (Stage 0 of NETRA pipeline)
+# EasyOCR: Python-only, no system Tesseract required, ~1.5 GB models on first run
+easyocr>=1.7.0
+# pytesseract: lighter weight but requires tesseract-ocr system binary
+#   Windows: https://github.com/UB-Mannheim/tesseract/wiki
+#   Linux:   sudo apt install tesseract-ocr
+pytesseract>=0.3.10
+
+# paddleocr is a third OCR fallback — large install, import-guarded
+# paddleocr>=2.7.0

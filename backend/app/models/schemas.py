@@ -7,6 +7,7 @@ defined in the plan (Section 15.1).
 Field names use camelCase to match the frontend type definitions in
 frontend/src/types/index.ts so the link works without a translation layer.
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -64,6 +65,7 @@ class SentinelAnalysisResult(BaseModel):
 class SecurityFeature(BaseModel):
     name: str
     status: str  # pass | fail | warn
+    description: Optional[str] = None
 
 
 class NetraScanResult(BaseModel):
@@ -129,3 +131,34 @@ class KavachChatResponse(BaseModel):
 
 class KavachNumberCheck(BaseModel):
     phone: str
+
+
+# ── NETRA extended ──────────────────────────────────────────────────────────
+class NetraScanResultExtended(BaseModel):
+    scan_id: str
+    verdict: str  # AUTHENTIC | SUSPICIOUS | COUNTERFEIT
+    confidence: float
+    overall_score: float
+    denomination: Optional[str] = None
+    denomination_confidence: Optional[float] = None
+    features: list[SecurityFeature] = Field(default_factory=list)
+    serial_number: Optional[dict] = None
+    processing_time_ms: Optional[int] = None
+    pipeline_version: str = "NETRA-v2.0-YOLOv12"
+    image_quality: Optional[dict] = None
+
+
+class NetraReportRequest(BaseModel):
+    scan_id: str
+    notes: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    location_description: Optional[str] = None
+
+
+class NetraHistoryItem(BaseModel):
+    id: str
+    timestamp: str
+    verdict: str
+    confidence: float
+    denomination: Optional[str] = None
