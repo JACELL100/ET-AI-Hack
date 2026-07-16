@@ -116,6 +116,81 @@ class HotspotData(BaseModel):
     district: str = ""
 
 
+class Incident(BaseModel):
+    id: str
+    lat: float
+    lng: float
+    type: str                          # scam | counterfeit | upi | network
+    severity: str                      # critical | high | medium | low
+    timestamp: str
+    district: str
+    state: str
+    description: str = ""
+    sourceModule: str = "DRISHTI"
+
+
+class HotspotDetailed(BaseModel):
+    id: str
+    lat: float
+    lng: float
+    intensity: float                   # 0.0 – 1.0
+    type: str
+    district: str
+    state: str
+    incidentCount: int
+    criticalCount: int
+    riskTrend: str                     # rising | stable | falling
+    predictedRisk72h: float
+    topCrimeType: str
+    breakdown: dict                    # {scam, counterfeit, upi, network} counts
+
+
+class Waypoint(BaseModel):
+    lat: float
+    lng: float
+    label: str = ""
+
+
+class PatrolRoute(BaseModel):
+    routeId: str
+    unitName: str
+    waypoints: list[Waypoint]
+    coverageKm: float
+    estimatedMinutes: int
+    priority: str                      # high | medium
+
+
+class PredictionZone(BaseModel):
+    gridId: str
+    lat: float
+    lng: float
+    riskScore: float                   # 0.0 – 1.0
+    confidence: float
+    timeframe: str                     # 24h | 48h | 72h
+    predictedType: str
+    district: str
+    state: str
+
+
+class DistrictStat(BaseModel):
+    district: str
+    state: str
+    totalIncidents: int
+    criticalCount: int
+    changePercent: float               # negative = improvement
+    riskRank: int
+    dominantType: str
+
+
+class DrishtiStats(BaseModel):
+    totalToday: int
+    criticalZones: int
+    activePatrols: int
+    avgResponseMin: float
+    hotspotCount: int
+    totalThisWeek: int
+
+
 # ── KAVACH ──────────────────────────────────────────────────────────────────
 class KavachChatRequest(BaseModel):
     message: str
@@ -154,6 +229,32 @@ class NetraReportRequest(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     location_description: Optional[str] = None
+
+
+# ── DRISHTI citizen reporting ────────────────────────────────────────────────
+class CitizenReportRequest(BaseModel):
+    type: str                              # scam | counterfeit | upi | network | other
+    description: str
+    district: str
+    state: str
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    phone: Optional[str] = None            # suspect phone (optional)
+    reporterName: Optional[str] = None
+
+
+class CitizenReport(BaseModel):
+    id: str
+    type: str
+    description: str
+    district: str
+    state: str
+    lat: float
+    lng: float
+    phone: Optional[str] = None
+    reporterName: Optional[str] = None
+    timestamp: str
+    status: str = "received"               # received | verified | escalated
 
 
 class NetraHistoryItem(BaseModel):

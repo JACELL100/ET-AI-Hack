@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.models.schemas import ok
-from app.routes import dashboard, drishti, jaal, kavach, netra, sentinel
+from app.routes import auth, dashboard, drishti, jaal, kavach, netra, sentinel
 from app.websockets.manager import manager
 
 app = FastAPI(
@@ -44,7 +44,9 @@ def health():
 
 # ── API routers (all under /api/v1) ─────────────────────────────────────────
 API_PREFIX = "/api/v1"
+app.include_router(auth.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)
+
 app.include_router(sentinel.router, prefix=API_PREFIX)
 app.include_router(netra.router, prefix=API_PREFIX)
 app.include_router(jaal.router, prefix=API_PREFIX)
