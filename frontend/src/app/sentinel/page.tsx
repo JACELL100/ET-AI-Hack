@@ -1,17 +1,19 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Shield, LayoutDashboard, Eye, Network, Map, MessageCircle, Settings, Mic, MicOff, Upload, Phone, PhoneOff, Video, AlertTriangle, CheckCircle, ChevronRight, Play, Square, Sun, Moon } from "lucide-react";
+import { Shield, LayoutDashboard, Eye, Network, Map, MessageCircle, Settings, Mic, MicOff, Upload, Phone, PhoneOff, Video, AlertTriangle, CheckCircle, ChevronRight, Play, Square, Sun, Moon, LogOut } from "lucide-react";
 import { ThreatGauge } from "@/components/ui/ThreatGauge";
 import { WireSphere } from "@/components/ui/WireSphere";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/components/providers/AuthContext";
 
 // Shared mini sidebar for module pages
 function ModuleSidebar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "SENTINEL", href: "/sentinel", icon: Shield, color: "#E63A1E" },
@@ -38,11 +40,40 @@ function ModuleSidebar() {
           );
         })}
       </nav>
-      <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--bg-border)" }}>
+      <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        {user && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", padding: "0 0.5rem" }}>
+            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Account</span>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={user.name}>{user.name}</span>
+          </div>
+        )}
         <button onClick={toggleTheme} style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.875rem", background: "none", border: "1px solid var(--bg-border)", borderRadius: "8px", cursor: "pointer", color: "var(--text-secondary)", fontSize: "0.8125rem", fontWeight: 500, fontFamily: "var(--font-body)" }}>
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           {theme === "dark" ? "Light Mode" : "Dark Mode"}
         </button>
+        {user && (
+          <button
+            onClick={logout}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.625rem",
+              width: "100%",
+              padding: "0.625rem 0.875rem",
+              background: "rgba(230,58,30,0.1)",
+              border: "1px solid rgba(230,58,30,0.2)",
+              borderRadius: "8px",
+              cursor: "pointer",
+              color: "var(--accent)",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            <LogOut size={14} />
+            Sign Out
+          </button>
+        )}
       </div>
     </aside>
   );
@@ -69,6 +100,9 @@ const mockTranscript = [
 ];
 
 export default function SentinelPage() {
+  const { user, loading } = useAuth();
+
+  // All hooks must be declared before any early return
   const [activeTab, setActiveTab] = useState<"simulate" | "upload" | "text">("simulate");
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
@@ -78,6 +112,24 @@ export default function SentinelPage() {
   const [textInput, setTextInput] = useState("");
   const [textResult, setTextResult] = useState<null | { score: number; intents: string[] }>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        window.location.href = "/admin";
+      } else if (!user.isAdmin) {
+        window.location.href = "/admin";
+      }
+    }
+  }, [user, loading]);
+
+  if (loading || !user || !user.isAdmin) {
+    return (
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
+        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying Admin credentials...</div>
+      </div>
+    );
+  }
 
   const startCall = () => {
     setIsCallActive(true);

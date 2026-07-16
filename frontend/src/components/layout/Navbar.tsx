@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, Menu, X, Sun, Moon, ExternalLink } from "lucide-react";
+import { Shield, Menu, X, Sun, Moon, ExternalLink, LogOut } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { useAuth } from "@/components/providers/AuthContext";
 
 const navLinks = [
   { label: "Modules", href: "#modules" },
@@ -16,14 +17,14 @@ const navLinks = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const pathname = usePathname();
 
-  // These pages have their own sidebar nav — hide the global navbar entirely
-  const appPages = ["/dashboard", "/sentinel", "/netra", "/jaal", "/drishti", "/kavach", "/settings"];
-  const isAppPage = appPages.some((p) => pathname === p || pathname.startsWith(p + "/"));
-
-  const isDashboard = pathname !== "/";
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -31,7 +32,25 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  if (isAppPage) return null;
+  // Hide Navbar on dashboard & admin views — evaluated only after mount
+  // so SSR and initial client render always produce the same output (null).
+  const hideNavbarPaths = ["/dashboard", "/admin", "/sentinel", "/netra", "/jaal", "/drishti", "/kavach", "/settings"];
+  const shouldHide = mounted && hideNavbarPaths.some(p => pathname.startsWith(p));
+
+  if (!mounted || shouldHide) return null;
+
+  const isDashboard = pathname !== "/";
+
+  // Determine dashboard link dynamically
+  const dashboardHref = user
+    ? (pathname.startsWith("/admin") || (user.isAdmin && !user.isCitizen) ? "/admin" : "/dashboard")
+    : "/login";
+
+  const navLinks = [
+    { label: "Modules", href: "/#modules" },
+    { label: "Dashboard", href: dashboardHref },
+    { label: "Citizen Shield", href: user ? "/kavach" : "/login" },
+  ];
 
   return (
     <>
@@ -172,15 +191,37 @@ export function Navbar() {
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </button>
 
-            {/* CTA */}
-            <Link
-              href="/dashboard"
-              className="btn btn-primary"
-              style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}
-            >
-              Get Started
-              <ExternalLink size={13} />
-            </Link>
+            {/* CTA / Session Actions */}
+            {user ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)", fontWeight: 600 }}>
+                  {user.name}
+                </span>
+                <Link
+                  href={dashboardHref}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}
+                >
+                  Portal
+                </Link>
+                <button
+                  onClick={logout}
+                  className="btn btn-primary btn-sm"
+                  style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.5rem 0.75rem" }}
+                >
+                  <LogOut size={12} />
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="btn btn-primary"
+                style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}
+              >
+                Get Started
+                <ExternalLink size={13} />
+              </Link>
+            )}
 
             {/* Mobile Menu */}
             <button
@@ -238,14 +279,24 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/dashboard"
-            className="btn btn-primary btn-lg"
-            style={{ marginTop: "1rem", justifyContent: "center" }}
-            onClick={() => setMobileOpen(false)}
-          >
-            Get Started <ExternalLink size={14} />
-          </Link>
+          {user ? (
+            <button
+              onClick={() => { setMobileOpen(false); logout(); }}
+              className="btn btn-primary btn-lg"
+              style={{ marginTop: "1rem", justifyContent: "center" }}
+            >
+              Sign Out <LogOut size={14} />
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="btn btn-primary btn-lg"
+              style={{ marginTop: "1rem", justifyContent: "center" }}
+              onClick={() => setMobileOpen(false)}
+            >
+              Get Started <ExternalLink size={14} />
+            </Link>
+          )}
         </div>
       )}
 

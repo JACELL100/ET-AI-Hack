@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { AuthProvider } from "@/components/providers/AuthContext";
 import { Navbar } from "@/components/layout/Navbar";
 
 const inter = Inter({
@@ -9,6 +10,7 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
 });
+
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -51,10 +53,14 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>
-          <Navbar />
-          <main>{children}</main>
+          <AuthProvider>
+            <Navbar />
+            <main>{children}</main>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
+
+

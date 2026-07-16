@@ -26,8 +26,10 @@ import {
   Cpu,
   Search,
   Hash,
+  LogOut,
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { useAuth } from "@/components/providers/AuthContext";
 import {
   scanCurrency,
   getNetraStats,
@@ -56,6 +58,7 @@ const navItems = [
 function Sidebar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   return (
     <aside
       style={{
@@ -159,8 +162,17 @@ function Sidebar() {
           marginTop: "auto",
           paddingTop: "1rem",
           borderTop: "1px solid var(--bg-border)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.75rem",
         }}
       >
+        {user && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", padding: "0 0.5rem" }}>
+            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Account</span>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={user.name}>{user.name}</span>
+          </div>
+        )}
         <button
           onClick={toggleTheme}
           style={{
@@ -181,6 +193,29 @@ function Sidebar() {
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           {theme === "dark" ? "Light Mode" : "Dark Mode"}
         </button>
+        {user && (
+          <button
+            onClick={logout}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.625rem",
+              width: "100%",
+              padding: "0.625rem 0.875rem",
+              background: "rgba(230,58,30,0.1)",
+              border: "1px solid rgba(230,58,30,0.2)",
+              borderRadius: "var(--radius-md)",
+              cursor: "pointer",
+              color: "var(--accent)",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            <LogOut size={14} />
+            Sign Out
+          </button>
+        )}
       </div>
     </aside>
   );
@@ -208,6 +243,18 @@ const steps = ["CAPTURE", "PREPROCESS", "ANALYSE", "REPORT"];
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 export default function NetraPage() {
+  const { user, loading, registerCitizen } = useAuth();
+
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        window.location.href = "/login";
+      } else if (!user.isCitizen) {
+        registerCitizen();
+      }
+    }
+  }, [user, loading, registerCitizen]);
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [denomination, setDenomination] = useState("₹500");
@@ -232,6 +279,16 @@ export default function NetraPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        window.location.href = "/login";
+      } else if (!user.isCitizen) {
+        registerCitizen();
+      }
+    }
+  }, [user, loading, registerCitizen]);
+
   // Load stats + history on mount
   useEffect(() => {
     getNetraStats()
@@ -245,6 +302,14 @@ export default function NetraPage() {
       })
       .catch(() => {});
   }, []);
+
+  if (loading || !user || !user.isCitizen) {
+    return (
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
+        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying Citizen access...</div>
+      </div>
+    );
+  }
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleFile = (file: File) => {

@@ -2,69 +2,23 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Shield, Eye, EyeOff, ArrowRight, User, Mail, Lock, Phone, Badge } from "lucide-react";
-
-type Role = "citizen" | "officer" | "admin";
-
-const roles: { value: Role; label: string; desc: string }[] = [
-  { value: "citizen", label: "Citizen", desc: "Report scams, get safety tips" },
-  { value: "officer", label: "LEO / Officer", desc: "Investigate cases, view dashboard" },
-  { value: "admin", label: "Admin", desc: "Full system access" },
-];
+import { Shield } from "lucide-react";
+import { useAuth } from "@/components/providers/AuthContext";
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", badgeId: "", password: "", confirmPassword: "" });
-  const [role, setRole] = useState<Role>("officer");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
+  const { loginWithGoogle } = useAuth();
 
-  const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = "Name is required";
-    if (!form.email.includes("@")) e.email = "Valid email required";
-    if (form.password.length < 8) e.password = "Password must be at least 8 characters";
-    if (form.password !== form.confirmPassword) e.confirmPassword = "Passwords do not match";
-    if (role === "officer" && !form.badgeId.trim()) e.badgeId = "Badge ID required for officers";
-    return e;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const errs = validate();
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    setErrors({});
+  const handleGoogleLogin = async () => {
+    setError("");
     setLoading(true);
-    await new Promise(r => setTimeout(r, 2000));
+    const result = await loginWithGoogle();
     setLoading(false);
-    window.location.href = "/dashboard";
+    if (!result.success) {
+      setError(result.error ?? "Failed to sign up with Google.");
+    }
   };
-
-  const inputStyle = (hasError?: boolean): React.CSSProperties => ({
-    width: "100%",
-    padding: "0.75rem 1rem 0.75rem 2.75rem",
-    background: "var(--bg-tertiary)",
-    border: `1px solid ${hasError ? "#E63A1E" : "var(--bg-border)"}`,
-    borderRadius: "var(--radius-md)",
-    color: "var(--text-primary)",
-    fontSize: "0.875rem",
-    fontFamily: "var(--font-body)",
-    outline: "none",
-    transition: "border-color 150ms ease",
-  });
-
-  const FieldWrapper = ({ label, icon, error, children }: { label: string; icon: React.ReactNode; error?: string; children: React.ReactNode }) => (
-    <div>
-      <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.5rem" }}>{label}</label>
-      <div style={{ position: "relative" }}>
-        <span style={{ position: "absolute", left: "0.875rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }}>{icon}</span>
-        {children}
-      </div>
-      {error && <p style={{ fontSize: "0.75rem", color: "#E63A1E", marginTop: "0.375rem" }}>{error}</p>}
-    </div>
-  );
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem", position: "relative", overflow: "hidden" }}>
@@ -72,7 +26,7 @@ export default function RegisterPage() {
       <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(230,58,30,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(230,58,30,0.04) 1px,transparent 1px)", backgroundSize: "60px 60px", pointerEvents: "none" }} />
       <div style={{ position: "absolute", top: "40%", right: "20%", width: "400px", height: "400px", background: "radial-gradient(circle, rgba(230,58,30,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-      <div style={{ width: "100%", maxWidth: "520px", position: "relative", zIndex: 1 }}>
+      <div style={{ width: "100%", maxWidth: "480px", position: "relative", zIndex: 1 }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.625rem", textDecoration: "none", marginBottom: "1rem" }}>
@@ -83,85 +37,42 @@ export default function RegisterPage() {
               RAKSHA<span style={{ color: "var(--accent)" }}>·AI</span>
             </span>
           </Link>
-          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.75rem", color: "var(--text-primary)", marginBottom: "0.375rem" }}>Create Account</h1>
+          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.75rem", color: "var(--text-primary)", marginBottom: "0.375rem" }}>Citizen Signup</h1>
           <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>Join the digital safety network</p>
         </div>
 
         <div style={{ background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-xl)", padding: "2rem" }}>
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.125rem" }}>
-            {/* Role selector */}
-            <div>
-              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.5rem" }}>Account Type</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
-                {roles.map(r => (
-                  <button key={r.value} type="button" onClick={() => setRole(r.value)} style={{ padding: "0.75rem 0.5rem", borderRadius: "var(--radius-md)", border: `1px solid ${role === r.value ? "var(--accent)" : "var(--bg-border)"}`, background: role === r.value ? "rgba(230,58,30,0.12)" : "var(--bg-tertiary)", color: role === r.value ? "var(--accent)" : "var(--text-secondary)", cursor: "pointer", transition: "all 150ms ease", textAlign: "center" }}>
-                    <p style={{ fontSize: "0.8rem", fontWeight: 700 }}>{r.label}</p>
-                    <p style={{ fontSize: "0.65rem", marginTop: "0.2rem", opacity: 0.75, lineHeight: 1.3 }}>{r.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Error */}
+          {error && <p style={{ fontSize: "0.8125rem", color: "#E63A1E", padding: "0.625rem 0.875rem", background: "rgba(230,58,30,0.1)", borderRadius: "var(--radius-md)", border: "1px solid rgba(230,58,30,0.2)", marginBottom: "1.25rem" }}>{error}</p>}
 
-            {/* Name */}
-            <FieldWrapper label="Full Name" icon={<User size={15} />} error={errors.name}>
-              <input type="text" value={form.name} onChange={e => update("name", e.target.value)} placeholder="Rajesh Kumar" style={inputStyle(!!errors.name)}
-                onFocus={e => { e.target.style.borderColor = "var(--accent)"; }}
-                onBlur={e => { e.target.style.borderColor = errors.name ? "#E63A1E" : "var(--bg-border)"; }} />
-            </FieldWrapper>
+          <button 
+            onClick={handleGoogleLogin} 
+            disabled={loading} 
+            style={{ width: "100%", padding: "0.875rem", background: "white", color: "#111827", border: "1px solid #D1D5DB", borderRadius: "var(--radius-md)", fontSize: "0.9375rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem", transition: "all 200ms ease", marginBottom: "1.5rem" }}
+          >
+            {loading ? (
+              <><span style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid #E63A1E", borderTopColor: "transparent", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Creating account...</>
+            ) : (
+              <>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Sign up with Google
+              </>
+            )}
+          </button>
 
-            {/* Email */}
-            <FieldWrapper label="Email Address" icon={<Mail size={15} />} error={errors.email}>
-              <input type="email" value={form.email} onChange={e => update("email", e.target.value)} placeholder="officer@police.gov.in" style={inputStyle(!!errors.email)}
-                onFocus={e => { e.target.style.borderColor = "var(--accent)"; }}
-                onBlur={e => { e.target.style.borderColor = errors.email ? "#E63A1E" : "var(--bg-border)"; }} />
-            </FieldWrapper>
+          {/* Terms */}
+          <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.6, textAlign: "center" }}>
+            By registering, you agree to our{" "}
+            <Link href="#" style={{ color: "var(--accent)", textDecoration: "none" }}>Terms of Service</Link>{" "}
+            and{" "}
+            <Link href="#" style={{ color: "var(--accent)", textDecoration: "none" }}>Privacy Policy</Link>.
+          </p>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              {/* Phone */}
-              <FieldWrapper label="Phone" icon={<Phone size={15} />} error={errors.phone}>
-                <input type="tel" value={form.phone} onChange={e => update("phone", e.target.value)} placeholder="+91-XXXXXXXXXX" style={inputStyle(!!errors.phone)}
-                  onFocus={e => { e.target.style.borderColor = "var(--accent)"; }}
-                  onBlur={e => { e.target.style.borderColor = "var(--bg-border)"; }} />
-              </FieldWrapper>
-
-              {/* Badge ID (officer only) */}
-              <FieldWrapper label={role === "officer" ? "Badge ID *" : "Badge ID"} icon={<Badge size={15} />} error={errors.badgeId}>
-                <input type="text" value={form.badgeId} onChange={e => update("badgeId", e.target.value)} placeholder="IPS-12345" disabled={role === "citizen"} style={{ ...inputStyle(!!errors.badgeId), opacity: role === "citizen" ? 0.5 : 1 }}
-                  onFocus={e => { if (role !== "citizen") e.target.style.borderColor = "var(--accent)"; }}
-                  onBlur={e => { e.target.style.borderColor = errors.badgeId ? "#E63A1E" : "var(--bg-border)"; }} />
-              </FieldWrapper>
-            </div>
-
-            {/* Password */}
-            <FieldWrapper label="Password" icon={<Lock size={15} />} error={errors.password}>
-              <input type={showPassword ? "text" : "password"} value={form.password} onChange={e => update("password", e.target.value)} placeholder="Min. 8 characters" style={{ ...inputStyle(!!errors.password), paddingRight: "2.75rem" }}
-                onFocus={e => { e.target.style.borderColor = "var(--accent)"; }}
-                onBlur={e => { e.target.style.borderColor = errors.password ? "#E63A1E" : "var(--bg-border)"; }} />
-              <button type="button" onClick={() => setShowPassword(v => !v)} style={{ position: "absolute", right: "0.875rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
-                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            </FieldWrapper>
-
-            {/* Confirm password */}
-            <FieldWrapper label="Confirm Password" icon={<Lock size={15} />} error={errors.confirmPassword}>
-              <input type={showPassword ? "text" : "password"} value={form.confirmPassword} onChange={e => update("confirmPassword", e.target.value)} placeholder="Repeat password" style={inputStyle(!!errors.confirmPassword)}
-                onFocus={e => { e.target.style.borderColor = "var(--accent)"; }}
-                onBlur={e => { e.target.style.borderColor = errors.confirmPassword ? "#E63A1E" : "var(--bg-border)"; }} />
-            </FieldWrapper>
-
-            {/* Terms */}
-            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
-              By registering, you agree to our{" "}
-              <Link href="#" style={{ color: "var(--accent)", textDecoration: "none" }}>Terms of Service</Link>{" "}
-              and{" "}
-              <Link href="#" style={{ color: "var(--accent)", textDecoration: "none" }}>Privacy Policy</Link>.
-            </p>
-
-            {/* Submit */}
-            <button type="submit" disabled={loading} style={{ width: "100%", padding: "0.875rem", background: loading ? "var(--bg-tertiary)" : "var(--accent)", color: "white", border: "none", borderRadius: "var(--radius-md)", fontSize: "0.9375rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", transition: "all 200ms ease" }}>
-              {loading ? <><span style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid white", borderTopColor: "transparent", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Creating account...</> : <>Create Account <ArrowRight size={17} /></>}
-            </button>
-          </form>
         </div>
 
         <p style={{ textAlign: "center", marginTop: "1.5rem", fontSize: "0.875rem", color: "var(--text-muted)" }}>

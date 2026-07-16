@@ -5,9 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Shield, Eye, Network, Map, MessageCircle, LayoutDashboard,
-  Settings, Sun, Moon, Send, Phone, Hash,
+  Settings, Sun, Moon, Send, Phone, Hash, LogOut
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { useAuth } from "@/components/providers/AuthContext";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -22,6 +23,7 @@ const navItems = [
 function Sidebar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   return (
     <aside style={{ width: "240px", flexShrink: 0, backgroundColor: "var(--bg-secondary)", borderRight: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", padding: "1.5rem 1rem", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 50, overflowY: "auto" }}>
       <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", marginBottom: "2rem", padding: "0 0.5rem" }}>
@@ -43,11 +45,40 @@ function Sidebar() {
           );
         })}
       </nav>
-      <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--bg-border)" }}>
+      <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        {user && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", padding: "0 0.5rem" }}>
+            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Account</span>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={user.name}>{user.name}</span>
+          </div>
+        )}
         <button onClick={toggleTheme} style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.875rem", background: "none", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", cursor: "pointer", color: "var(--text-secondary)", fontSize: "0.8125rem", fontFamily: "var(--font-body)" }}>
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           {theme === "dark" ? "Light Mode" : "Dark Mode"}
         </button>
+        {user && (
+          <button
+            onClick={logout}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.625rem",
+              width: "100%",
+              padding: "0.625rem 0.875rem",
+              background: "rgba(230,58,30,0.1)",
+              border: "1px solid rgba(230,58,30,0.2)",
+              borderRadius: "var(--radius-md)",
+              cursor: "pointer",
+              color: "var(--accent)",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            <LogOut size={14} />
+            Sign Out
+          </button>
+        )}
       </div>
     </aside>
   );
@@ -74,6 +105,8 @@ const quickActions = ["Report Scam", "Check Number", "Emergency Contacts", "Safe
 type Tab = "webchat" | "whatsapp" | "ivr";
 
 export default function KavachPage() {
+  const { user, loading, registerCitizen } = useAuth();
+
   const [activeTab, setActiveTab] = useState<Tab>("webchat");
   const [messages, setMessages] = useState<ChatMsg[]>(initialMessages);
   const [waMessages, setWaMessages] = useState<ChatMsg[]>(initialMessages);
@@ -83,8 +116,26 @@ export default function KavachPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const waEndRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        window.location.href = "/login";
+      } else if (!user.isCitizen) {
+        registerCitizen();
+      }
+    }
+  }, [user, loading, registerCitizen]);
+
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, typing]);
   useEffect(() => { waEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [waMessages]);
+
+  if (loading || !user || !user.isCitizen) {
+    return (
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
+        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying Citizen access...</div>
+      </div>
+    );
+  }
 
   const getBotReply = (msg: string): string => {
     const lower = msg.toLowerCase();
