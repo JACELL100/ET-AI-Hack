@@ -1,0 +1,504 @@
+# 🔍 RAKSHA AI — WhatsApp Chat Scanner Feature
+
+**Module Codename: KAVACH-WA (WhatsApp Guard)**
+Integrate real WhatsApp chat scanning into the RAKSHA AI platform. Users connect their WhatsApp by scanning a QR code (powered by `whatsapp-web.js`), the backend reads their chats, and Groq-powered AI analyses every conversation for scams, fraud, phishing, threats, and suspicious patterns — flagging dangerous messages in a beautiful dashboard.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **Groq API Key**: You mentioned using your Groq API key. I'll need the actual key value to add to the backend `.env`. I'll add a `GROQ_API_KEY=` placeholder — please fill it in before running.
+
+> [!WARNING]
+> **WhatsApp Terms of Service**: `whatsapp-web.js` is an **unofficial** library that automates WhatsApp Web. Using it may violate WhatsApp's ToS and risk account bans. This is acceptable for a hackathon prototype/demo but should be disclosed.
+
+> [!IMPORTANT]
+> **Node.js Backend Sidecar**: `whatsapp-web.js` is a Node.js library and cannot run inside the Python/FastAPI backend. We will create a **lightweight Node.js microservice** (`whatsapp-bridge`) that the FastAPI backend communicates with via HTTP. This is the cleanest integration path.
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Groq Model Choice**: I plan to use `llama-3.3-70b-versatile` via Groq for chat analysis (fast, high quality, free tier available). Do you have a preference for a different Groq model (e.g., `mixtral-8x7b-32768`, `gemma2-9b-it`)?
+> 2. **Chat Scope**: Should we scan **all chats** automatically on connect, or let the user **select specific chats** to scan? I'll default to scanning all chats with a frontend filter.
+> 3. **Real-time vs Batch**: Should new incoming messages be monitored in real-time after initial scan, or is a one-time batch scan sufficient for the demo? I'll implement both (initial batch + real-time listener).
+
+---
+
+## Proposed Changes
+
+The feature is split into **3 components**: a Node.js WhatsApp bridge service, Python/FastAPI backend additions, and a Next.js frontend page.
+
+---
+
+### Component 1: WhatsApp Bridge (Node.js Microservice)
+
+A standalone Node.js service that manages the WhatsApp Web session via `whatsapp-web.js`, exposes REST+WebSocket endpoints for the FastAPI backend to consume.
+
+#### [NEW] [whatsapp-bridge/](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/whatsapp-bridge/)
+
+New directory at project root alongside `frontend/` and `backend/`.
+
+#### [NEW] [package.json](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/whatsapp-bridge/package.json)
+
+Dependencies:
+- `whatsapp-web.js` — WhatsApp Web automation
+- `qrcode-terminal` — QR code display in terminal (debug)
+- `express` — HTTP server for REST API
+- `ws` — WebSocket server to push QR/events to frontend
+- `cors` — CORS for FastAPI backend access
+- `puppeteer` or `chrome-launcher` — Chromium for whatsapp-web.js
+
+#### [NEW] [index.js](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/whatsapp-bridge/index.js)
+
+Main entry point. Architecture:
+
+```
+WhatsApp Bridge (:3001)
+├── Express REST API
+│   ├── GET  /status          → { connected, qrReady, phone }
+│   ├── GET  /chats           → list all chats with metadata
+│   ├── GET  /chats/:id       → messages for a specific chat
+│   ├── POST /disconnect      → logout WhatsApp session
+│   └── GET  /health          → health check
+├── WebSocket Server (/ws)
+│   ├── event: "qr"           → QR code data URL pushed to frontend
+│   ├── event: "authenticated" → session authenticated
+│   ├── event: "ready"        → client ready, can fetch chats
+│   ├── event: "message"      → new incoming message (real-time)
+│   └── event: "disconnected" → session ended
+└── WhatsApp Client (whatsapp-web.js)
+    ├── LocalAuth strategy (persistent session in .wwebjs_auth/)
+    ├── QR code generation on init
+    ├── Chat fetching (all chats, paginated messages)
+    └── Real-time message listener
+```
+
+Key implementation details:
+- On startup, initialize `whatsapp-web.js` `Client` with `LocalAuth` for session persistence
+- On `qr` event: convert QR string to data URL using `qrcode` package, push via WebSocket
+- On `ready` event: notify all connected WS clients
+- **`GET /chats`**: Call `client.getChats()`, return `{ id, name, isGroup, timestamp, unreadCount, lastMessage }`
+- **`GET /chats/:id`**: Call `chat.fetchMessages({ limit: 100 })`, return `{ id, from, body, timestamp, fromMe, type }`
+- **Real-time**: Listen to `client.on('message')`, broadcast to WS clients
+- Port: `3001` (configurable via env)
+
+#### [NEW] [.env](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/whatsapp-bridge/.env)
+
+```env
+PORT=3001
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8000
+```
+
+---
+
+### Component 2: FastAPI Backend Additions
+
+New route, service, and schemas for WhatsApp chat analysis using Groq.
+
+---
+
+#### [MODIFY] [config.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/config.py)
+
+Add new settings:
+```python
+# Groq AI — LLM for chat analysis
+groq_api_key: str = ""
+groq_model: str = "llama-3.3-70b-versatile"
+groq_max_tokens: int = 2048
+
+# WhatsApp Bridge
+whatsapp_bridge_url: str = "http://localhost:3001"
+```
+
+#### [MODIFY] [.env](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/.env)
+
+Add:
+```env
+# ── Groq AI ─────────────────────────────────────────
+GROQ_API_KEY=<your-groq-api-key>
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# ── WhatsApp Bridge ─────────────────────────────────
+WHATSAPP_BRIDGE_URL=http://localhost:3001
+```
+
+#### [MODIFY] [requirements.txt](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/requirements.txt)
+
+Add:
+```
+# Groq AI SDK — LLM inference for WhatsApp chat analysis
+groq>=0.12.0
+```
+
+#### [NEW] [whatsapp_service.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/whatsapp_service.py)
+
+Core service with two responsibilities:
+
+**1. Bridge Communication** — HTTP client to the Node.js WhatsApp bridge:
+- `get_status()` → bridge connection status
+- `get_chats()` → fetch all chats from bridge
+- `get_chat_messages(chat_id, limit)` → fetch messages for a chat
+- `disconnect()` → logout WhatsApp session
+
+**2. Groq AI Analysis** — Send chat messages to Groq for fraud/scam analysis:
+- `analyse_chat(messages: list[dict])` → Groq LLM call with structured prompt
+- System prompt instructs the model to act as a fraud detection expert
+- Analyses messages for: scam patterns, phishing links, financial fraud, identity theft, social engineering, threats, suspicious urgency
+- Returns structured JSON: `{ risk_level, flagged_messages[], summary, recommendations }`
+
+**Groq Prompt Strategy:**
+```
+You are RAKSHA AI's fraud detection engine. Analyse the following WhatsApp 
+conversation and identify potential scams, fraud, phishing, or threats.
+
+For each flagged message, provide:
+- message_index: position in the conversation
+- risk_level: "critical" | "high" | "medium" | "low"  
+- threat_type: category (SCAM, PHISHING, FINANCIAL_FRAUD, IDENTITY_THEFT, 
+  SOCIAL_ENGINEERING, THREAT, SUSPICIOUS)
+- explanation: why this message is flagged
+- recommendation: what the user should do
+
+Also provide:
+- overall_risk: "safe" | "low" | "medium" | "high" | "critical"
+- summary: brief summary of the conversation safety
+- key_findings: list of the main concerns found
+```
+
+Messages will be batched (max ~50 per Groq call) to stay within token limits. For large chats, we'll chunk and merge results.
+
+#### [NEW] [whatsapp.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/routes/whatsapp.py)
+
+New FastAPI router with prefix `/whatsapp`, endpoints:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/whatsapp/status` | Get WhatsApp connection status (connected/qr-pending/disconnected) |
+| `GET` | `/api/v1/whatsapp/chats` | List all WhatsApp chats (proxied from bridge) |
+| `POST` | `/api/v1/whatsapp/analyse` | Analyse a specific chat — sends messages to Groq, returns flagged results |
+| `POST` | `/api/v1/whatsapp/analyse/all` | Analyse all chats (batch) — returns summary per chat |
+| `POST` | `/api/v1/whatsapp/disconnect` | Disconnect WhatsApp session |
+| `GET` | `/api/v1/whatsapp/chat/{id}/messages` | Get raw messages for a chat |
+
+#### [MODIFY] [schemas.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/models/schemas.py)
+
+Add new Pydantic models:
+
+```python
+# ── WHATSAPP (KAVACH-WA) ────────────────────────────────────────────────────
+class WhatsAppStatus(BaseModel):
+    connected: bool = False
+    qr_ready: bool = False
+    phone: Optional[str] = None
+
+class WhatsAppChat(BaseModel):
+    id: str
+    name: str
+    isGroup: bool = False
+    timestamp: Optional[int] = None
+    unreadCount: int = 0
+    lastMessage: Optional[str] = None
+
+class WhatsAppMessage(BaseModel):
+    id: str
+    from_: str = Field(alias="from")
+    body: str
+    timestamp: int
+    fromMe: bool = False
+    type: str = "chat"
+
+class FlaggedMessage(BaseModel):
+    message_index: int
+    message_body: str
+    risk_level: str            # critical | high | medium | low
+    threat_type: str           # SCAM | PHISHING | FINANCIAL_FRAUD | etc.
+    explanation: str
+    recommendation: str
+
+class ChatAnalysisResult(BaseModel):
+    chat_id: str
+    chat_name: str
+    overall_risk: str          # safe | low | medium | high | critical
+    summary: str
+    flagged_messages: list[FlaggedMessage] = Field(default_factory=list)
+    key_findings: list[str] = Field(default_factory=list)
+    total_messages_scanned: int = 0
+    flagged_count: int = 0
+    scan_time_ms: int = 0
+
+class ChatAnalyseRequest(BaseModel):
+    chat_id: str
+    limit: int = 100           # max messages to fetch
+
+class BatchAnalysisResult(BaseModel):
+    total_chats: int = 0
+    chats_scanned: int = 0
+    high_risk_chats: list[ChatAnalysisResult] = Field(default_factory=list)
+    safe_chats: int = 0
+    scan_time_ms: int = 0
+```
+
+#### [MODIFY] [main.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/main.py)
+
+- Import and mount the new `whatsapp` router:
+```python
+from app.routes import auth, dashboard, drishti, jaal, kavach, netra, sentinel, whatsapp
+# ...
+app.include_router(whatsapp.router, prefix=API_PREFIX)
+```
+
+- Add a new WebSocket endpoint `/ws/whatsapp` that proxies QR code and real-time events from the Node.js bridge to the frontend:
+```python
+@app.websocket("/ws/whatsapp")
+async def ws_whatsapp(websocket: WebSocket):
+    """Proxy WhatsApp bridge WebSocket events to frontend."""
+    await whatsapp_ws_handler(websocket)
+```
+
+#### [NEW] [whatsapp_ws.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/websockets/whatsapp_ws.py)
+
+WebSocket handler that:
+1. Accepts frontend WebSocket connection
+2. Connects to the Node.js bridge WebSocket (`ws://localhost:3001/ws`)
+3. Forwards events (QR code, authentication, ready, new messages) from bridge → frontend
+4. Forwards commands from frontend → bridge (if needed)
+
+This acts as a relay so the frontend only talks to the FastAPI backend, keeping the architecture clean.
+
+---
+
+### Component 3: Next.js Frontend — WhatsApp Scanner Page
+
+A new page at `/kavach/whatsapp-scan` with a premium, immersive UI.
+
+#### [NEW] [page.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/app/kavach/whatsapp-scan/page.tsx)
+
+Full-page WhatsApp scanner experience with these UI states:
+
+**State 1 — Connect (QR Code)**
+- Hero section with animated shield + WhatsApp icon
+- Large QR code display area (receives QR data URL via WebSocket)
+- "Scan with WhatsApp" instruction with step-by-step guide
+- Animated scanning border effect around QR
+- Status indicator: "Waiting for scan..." → "Authenticating..." → "Connected!"
+- Glassmorphism card design with subtle gradient background
+
+**State 2 — Chat List (Connected)**
+- Success banner with connected phone number
+- Grid/list of all WhatsApp chats with:
+  - Contact/group name and avatar placeholder
+  - Last message preview
+  - Unread count badge
+  - "Scan" button per chat
+- "🔍 Scan All Chats" master button (prominent, gradient)
+- Search/filter bar for chats
+- Stats bar: Total chats, groups, contacts
+
+**State 3 — Scanning (Analysis in Progress)**
+- Animated progress with chat name and scanning animation
+- Real-time progress: "Scanning chat 3 of 47..."
+- Pulsing shield animation
+- Messages streaming as they're analysed
+
+**State 4 — Results Dashboard**
+- Overall safety score (large circular gauge, color-coded)
+- Summary cards: Total scanned, Flagged, Safe, High Risk
+- Chat-by-chat results in expandable cards:
+  - Risk level badge (color-coded: 🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Safe)
+  - Chat name, message count, flagged count
+  - Expandable → shows flagged messages with:
+    - Original message text (highlighted)
+    - Threat type badge
+    - AI explanation
+    - Recommended action
+- Export report button
+- "Disconnect WhatsApp" button
+
+**Design System:**
+- Uses existing RAKSHA AI CSS variables (`--bg-primary`, `--bg-secondary`, `--accent`, etc.)
+- WhatsApp green accent: `#25D366` for WhatsApp-branded elements
+- Existing Sidebar navigation (same pattern as Kavach page)
+- Framer Motion animations for state transitions
+- Lucide icons throughout
+- Responsive: works on desktop (primary) and tablet
+
+#### [MODIFY] [api.ts](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/lib/api.ts)
+
+Add new API functions:
+
+```typescript
+// ── WHATSAPP SCANNER ──────────────────────────────────────────────────────
+export const getWhatsAppStatus = () =>
+  api.get<ApiResponse<WhatsAppStatus>>("/api/v1/whatsapp/status").then(r => r.data);
+
+export const getWhatsAppChats = () =>
+  api.get<ApiResponse<WhatsAppChat[]>>("/api/v1/whatsapp/chats").then(r => r.data);
+
+export const analyseWhatsAppChat = (chatId: string, limit?: number) =>
+  api.post<ApiResponse<ChatAnalysisResult>>("/api/v1/whatsapp/analyse", {
+    chat_id: chatId,
+    limit: limit ?? 100,
+  }).then(r => r.data);
+
+export const analyseAllWhatsAppChats = () =>
+  api.post<ApiResponse<BatchAnalysisResult>>("/api/v1/whatsapp/analyse/all")
+    .then(r => r.data);
+
+export const disconnectWhatsApp = () =>
+  api.post<ApiResponse<{ disconnected: boolean }>>("/api/v1/whatsapp/disconnect")
+    .then(r => r.data);
+
+export const getWhatsAppMessages = (chatId: string) =>
+  api.get<ApiResponse<WhatsAppMessage[]>>(`/api/v1/whatsapp/chat/${chatId}/messages`)
+    .then(r => r.data);
+```
+
+#### [MODIFY] [index.ts](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/types/index.ts)
+
+Add TypeScript types:
+
+```typescript
+// ── WhatsApp Scanner ──────────────────────────────────────────────────────
+export interface WhatsAppStatus {
+  connected: boolean;
+  qrReady: boolean;
+  phone: string | null;
+}
+
+export interface WhatsAppChat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  timestamp: number | null;
+  unreadCount: number;
+  lastMessage: string | null;
+}
+
+export interface WhatsAppMessage {
+  id: string;
+  from: string;
+  body: string;
+  timestamp: number;
+  fromMe: boolean;
+  type: string;
+}
+
+export interface FlaggedMessage {
+  message_index: number;
+  message_body: string;
+  risk_level: "critical" | "high" | "medium" | "low";
+  threat_type: string;
+  explanation: string;
+  recommendation: string;
+}
+
+export interface ChatAnalysisResult {
+  chat_id: string;
+  chat_name: string;
+  overall_risk: "safe" | "low" | "medium" | "high" | "critical";
+  summary: string;
+  flagged_messages: FlaggedMessage[];
+  key_findings: string[];
+  total_messages_scanned: number;
+  flagged_count: number;
+  scan_time_ms: number;
+}
+
+export interface BatchAnalysisResult {
+  total_chats: number;
+  chats_scanned: number;
+  high_risk_chats: ChatAnalysisResult[];
+  safe_chats: number;
+  scan_time_ms: number;
+}
+```
+
+#### [MODIFY] Kavach Page Navigation
+
+Add a link/tab to the WhatsApp Scanner from the existing Kavach page tabs (`webchat | whatsapp | ivr`) — the "WhatsApp" tab will now link to `/kavach/whatsapp-scan` instead of showing the simulated WhatsApp UI. Alternatively, add a prominent "🔍 Connect Real WhatsApp" CTA card on the Kavach page.
+
+---
+
+## Architecture Flow Diagram
+
+```
+┌──────────────┐    WebSocket (QR/events)     ┌──────────────────┐
+│   Next.js    │ ◄──────────────────────────── │   FastAPI :8000   │
+│   Frontend   │    REST API (/api/v1/wa/*)    │   (Python)        │
+│   :3000      │ ────────────────────────────► │                   │
+└──────────────┘                               │  whatsapp_service │
+                                               │  ┌─────────────┐ │
+                                               │  │ Groq SDK    │ │
+                                               │  │ (LLM Call)  │ │
+                                               │  └──────┬──────┘ │
+                                               │         │        │
+                                               └────┬────┘────────┘
+                                                    │ HTTP
+                                               ┌────▼────────────┐
+                                               │  WhatsApp Bridge │
+                                               │  (Node.js :3001) │
+                                               │                   │
+                                               │  whatsapp-web.js  │
+                                               │  ┌─────────────┐ │
+                                               │  │ Chromium     │ │
+                                               │  │ (Puppeteer)  │ │
+                                               │  └─────────────┘ │
+                                               └──────────────────┘
+                                                    │
+                                               WhatsApp Web Servers
+```
+
+---
+
+## File Summary
+
+| Action | File | Description |
+|--------|------|-------------|
+| **NEW** | `whatsapp-bridge/package.json` | Node.js dependencies for WhatsApp bridge |
+| **NEW** | `whatsapp-bridge/index.js` | WhatsApp Web.js bridge server (Express + WS) |
+| **NEW** | `whatsapp-bridge/.env` | Bridge environment config |
+| **MODIFY** | `backend/app/config.py` | Add Groq + bridge URL settings |
+| **MODIFY** | `backend/.env` | Add GROQ_API_KEY + WHATSAPP_BRIDGE_URL |
+| **MODIFY** | `backend/requirements.txt` | Add `groq` SDK |
+| **NEW** | `backend/app/services/whatsapp_service.py` | Bridge client + Groq analysis logic |
+| **NEW** | `backend/app/routes/whatsapp.py` | REST endpoints for WhatsApp feature |
+| **NEW** | `backend/app/websockets/whatsapp_ws.py` | WebSocket relay for QR/events |
+| **MODIFY** | `backend/app/models/schemas.py` | Add WhatsApp Pydantic models |
+| **MODIFY** | `backend/app/main.py` | Mount whatsapp router + WS endpoint |
+| **NEW** | `frontend/src/app/kavach/whatsapp-scan/page.tsx` | Full WhatsApp scanner page |
+| **MODIFY** | `frontend/src/lib/api.ts` | Add WhatsApp API functions |
+| **MODIFY** | `frontend/src/types/index.ts` | Add WhatsApp TypeScript types |
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- `curl http://localhost:3001/health` — verify WhatsApp bridge is running
+- `curl http://localhost:8000/api/v1/whatsapp/status` — verify FastAPI route serves status
+- `curl http://localhost:8000/health` — verify backend still starts cleanly after changes
+
+### Manual Verification
+1. **Start the WhatsApp bridge**: `cd whatsapp-bridge && node index.js`
+2. **Start the FastAPI backend**: `cd backend && python run.py`
+3. **Start the Next.js frontend**: `cd frontend && npm run dev`
+4. **Navigate to** `/kavach/whatsapp-scan`
+5. **Verify QR code** appears in the UI (WebSocket relay works)
+6. **Scan QR** with a WhatsApp mobile app
+7. **Verify** chat list populates after authentication
+8. **Click "Scan"** on a specific chat → verify Groq analysis returns flagged messages
+9. **Click "Scan All Chats"** → verify batch analysis works
+10. **Verify** the results dashboard renders correctly with risk levels and flagged messages
+11. **Click "Disconnect"** → verify WhatsApp session ends cleanly
+12. **Test dark/light mode** — verify UI works in both themes
+
+### Edge Cases to Test
+- WhatsApp bridge not running → graceful error in UI
+- Groq API key missing → clear error message
+- Empty chat (no messages) → handle gracefully
+- Very large chat (1000+ messages) → verify batching works
+- Group chat with many participants → verify display
+- Media-only messages (images, stickers) → skip gracefully in analysis

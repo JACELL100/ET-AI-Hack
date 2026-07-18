@@ -1,0 +1,738 @@
+# 🔴 SENTINEL Agent — Full Implementation Plan
+
+Complete implementation of the SENTINEL scam detection module across **3 sections**: Simulation-based, Real WebRTC-based, and Real PSTN (Authkey.io) integration.
+
+## Current State Assessment
+
+### What Exists Today
+- **Backend**: Minimal mock — keyword-based `analyse_text()` in [sentinel_service.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/sentinel_service.py), static alerts, hash-based phone number scoring
+- **Backend Routes**: Only 3 endpoints — `POST /analyse/text`, `GET /number/{phone}`, `GET /alerts` in [sentinel.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/routes/sentinel.py)
+- **Frontend**: Single [page.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/app/sentinel/page.tsx) with hardcoded mock transcript, basic tab UI (simulate/upload/text), no real audio/video processing
+- **WebSocket**: Basic echo hub in [manager.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/websockets/manager.py) — no SENTINEL-specific streaming
+- **No AI models loaded** — no Faster-Whisper, no IndicBERT, no wav2vec, no deepfake detection
+- **No Authkey.io integration** — key exists in `.env.example` but unused
+
+### What Needs Building
+Every layer of the SENTINEL pipeline from the implementation plan (Section 6) is unbuilt: STT, scam classification, voice analysis, video analysis, threat scoring, alert dispatch, and all 3 input modes.
+
+---
+
+## Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     SENTINEL — 3 Input Modes                            │
+│                                                                         │
+│  ┌──────────────┐   ┌──────────────────┐   ┌─────────────────────────┐ │
+│  │  SECTION 1   │   │    SECTION 2      │   │      SECTION 3          │ │
+│  │  Simulation  │   │  Real WebRTC      │   │  Real PSTN (Authkey)    │ │
+│  │              │   │                    │   │                         │ │
+│  │ Pre-recorded │   │ Browser Mic/Cam   │   │ Actual phone calls &    │ │
+│  │ audio/video  │   │ via WebRTC        │   │ SMS via Authkey.io      │ │
+│  │ + file upload│   │ peer-to-peer      │   │ TTS voice alerts        │ │
+│  └──────┬───────┘   └────────┬──────────┘   └───────────┬─────────────┘ │
+│         │                    │                           │               │
+│         └────────────────────┼───────────────────────────┘               │
+│                              ▼                                           │
+│              ┌───────────────────────────────┐                          │
+│              │    SENTINEL Analysis Engine    │                          │
+│              │  (Shared across all 3 modes)   │                          │
+│              │                                │                          │
+│              │  Stage 1: STT (Faster-Whisper) │                          │
+│              │  Stage 2: Intent Classification│                          │
+│              │  Stage 3: Script Matching      │                          │
+│              │  Stage 4: Voice Analysis       │                          │
+│              │  Stage 5: Video Analysis       │                          │
+│              │  Stage 6: Threat Scoring       │                          │
+│              │  Stage 7: Alert Generation     │                          │
+│              └───────────────────────────────┘                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> **GPU Availability**: The plan assumes **CPU-only** inference for the hackathon prototype. Faster-Whisper with `tiny`/`base` models runs reasonably on CPU. If you have a GPU (CUDA), we can use `medium`/`large-v3-turbo` for much better accuracy. Please confirm your hardware.
+
+> [!IMPORTANT]
+> **Authkey.io Account Setup**: You mentioned 2400 credits. For Section 3 to work, you'll need:
+> 1. Your Authkey API key (the `authkey` param)
+> 2. An approved Sender ID (6-char, e.g., `RAKSHA`)
+> 3. DLT-registered SMS templates (required for India) — or we use voice-only calls which may not need DLT
+> 4. Please confirm if you've already set these up in the Authkey dashboard, or if we should focus on the voice call API (TTS) which is simpler
+
+> [!WARNING]
+> **Model Download Sizes**: First run will download ML models:
+> - Faster-Whisper `base` model: ~150MB
+> - Sentence Transformers: ~90MB
+> - The plan uses lightweight models to keep total < 500MB
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Hardware**: Do you have a CUDA-capable GPU? This determines which Whisper model size to use (`tiny`=~40MB vs `large-v3-turbo`=~6GB)
+> 2. **Authkey.io**: Have you already registered a Sender ID and created SMS/Voice templates on the Authkey dashboard? Or should we only use the raw `voice` TTS API for outbound calls?
+> 3. **Scope for Hackathon**: Should all 3 sections be equally polished, or do you want Section 1 (Simulation) to be the most demo-ready with Sections 2 & 3 as "bonus" capabilities?
+> 4. **Pre-recorded Audio**: Do you have any real Hindi/English scam call recordings, or should we generate synthetic TTS audio for the simulation scenarios?
+
+---
+
+## Proposed Changes
+
+### Component 1: Shared SENTINEL Analysis Engine (Backend Core)
+
+The core AI pipeline that all 3 input modes feed into. This is the heart of SENTINEL.
+
+---
+
+#### [NEW] [sentinel_engine.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/sentinel_engine.py)
+
+**The central analysis orchestrator**. Accepts audio bytes / text / video frames and runs the full 6-stage pipeline:
+
+```python
+class SentinelEngine:
+    """Orchestrates the full SENTINEL analysis pipeline."""
+    
+    async def analyse_audio(audio_bytes, language_hint=None) -> AnalysisResult
+    async def analyse_text(text, language=None) -> AnalysisResult  
+    async def analyse_audio_stream(audio_chunk_generator) -> AsyncGenerator[StreamUpdate]
+    async def analyse_video_frame(frame_bytes) -> VideoAnalysisResult
+```
+
+**Stage 1 — STT**: Uses `faster-whisper` (`base` model for CPU) to transcribe audio → text with timestamps, language detection, and speaker segments.
+
+**Stage 2 — Scam Intent Classification**: Multi-layer classification:
+- **Layer A — Keyword/Pattern scoring**: Expanded version of current approach with weighted term categories (legal threats, urgency markers, impersonation cues, financial demands)
+- **Layer B — Sentence Transformer similarity**: Embed the transcript and compare against a curated corpus of known scam scripts using cosine similarity (threshold > 0.75). Use `sentence-transformers/all-MiniLM-L6-v2` (22MB, very fast)
+- **Layer C — HuggingFace IndicBERT zero-shot classifier**: Use `ai4bharat/IndicBERTv2-MLM-Sam-TLM` for zero-shot classification into scam intent categories (`IMPERSONATION`, `LEGAL_THREAT`, `URGENCY_CREATION`, `MONEY_DEMAND`, `INTIMIDATION`, `NORMAL`)
+
+**Stage 3 — Voice Analysis** (audio-only):
+- Pitch variance, speech rate, pause patterns — scripted speech has lower variance
+- Background noise classification (call centre vs personal environment)
+- Simple acoustic features via `librosa` — no heavy model needed for prototype
+
+**Stage 4 — Threat Score Computation**:
+- Weighted ensemble: Intent Score (40%) + Script Similarity (25%) + Voice Features (20%) + Number Reputation (15%)
+- Produces 0–100 threat score with category: `SCAM` (>70), `SUSPICIOUS` (40–70), `SAFE` (<40)
+
+**Stage 5 — Alert Generation**: Creates structured alert payload for dispatch via WebSocket, Supabase, and optionally Authkey.io SMS/voice.
+
+---
+
+#### [NEW] [stt_service.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/stt_service.py)
+
+Speech-to-text wrapper around `faster-whisper`:
+
+```python
+class STTService:
+    def __init__(self, model_size="base", device="cpu"):
+        self.model = WhisperModel(model_size, device=device, compute_type="int8")
+    
+    def transcribe(self, audio_path: str) -> TranscriptionResult:
+        """Full file transcription with timestamps and language detection."""
+    
+    async def transcribe_stream(self, audio_chunks) -> AsyncGenerator[TranscriptSegment]:
+        """Streaming transcription for real-time analysis."""
+```
+
+---
+
+#### [NEW] [scam_classifier.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/scam_classifier.py)
+
+Multi-layer scam intent classification:
+- Keyword scoring engine (expanded from current 15 terms → 60+ weighted terms across categories)
+- Sentence-Transformer embedding + cosine similarity against curated scam script corpus
+- Zero-shot classification via HuggingFace pipeline
+- Returns per-sentence intents + overall classification
+
+---
+
+#### [NEW] [voice_analyser.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/voice_analyser.py)
+
+Acoustic feature extraction using `librosa`:
+- Pitch statistics (mean, variance, range)
+- Speech rate (syllables per second estimate)
+- Pause analysis (frequency, duration of silences)
+- Background noise energy profile
+- Scripted-speech likelihood score
+
+---
+
+#### [NEW] [scam_corpus.json](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/data/scam_corpus.json)
+
+Curated corpus of 30+ known scam script patterns in Hindi, English, and Marathi. Examples:
+- "CBI digital arrest" scripts
+- "Customs parcel seized" scripts
+- "Bank KYC expired" scripts
+- "Lottery/prize" scripts
+- Investment fraud scripts
+
+These are embedded on startup and stored in memory for fast cosine similarity matching.
+
+---
+
+#### [MODIFY] [sentinel_service.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/sentinel_service.py)
+
+Refactor from mock keyword matching → delegate to `SentinelEngine`:
+- `analyse_text()` → calls `SentinelEngine.analyse_text()`
+- `analyse_audio()` [NEW] → calls `SentinelEngine.analyse_audio()`
+- `analyse_audio_stream()` [NEW] → calls `SentinelEngine.analyse_audio_stream()`
+- Keep `check_number()` and `get_alerts()` but enhance with Supabase persistence
+
+---
+
+#### [MODIFY] [schemas.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/models/schemas.py)
+
+Add new Pydantic models:
+```python
+class TranscriptSegment(BaseModel):
+    speaker: str           # CALLER / VICTIM
+    text: str
+    start_time: float
+    end_time: float
+    language: str
+    intent: str            # IMPERSONATION, LEGAL_THREAT, etc.
+    confidence: float
+
+class VoiceAnalysis(BaseModel):
+    is_scripted: bool
+    scripted_confidence: float
+    speech_rate: float
+    pitch_variance: float
+    bg_noise_type: str     # call_centre | personal | silent
+
+class SentinelFullResult(BaseModel):
+    session_id: str
+    threat_score: float
+    verdict: str
+    scam_type: str | None
+    transcript: list[TranscriptSegment]
+    intents_detected: list[str]
+    voice_analysis: VoiceAnalysis | None
+    script_similarity: float
+    confidence: float
+    processing_time_ms: int
+    alerts_sent: list[str]
+
+class SentinelStreamUpdate(BaseModel):
+    type: str              # transcript | threat_update | intent | alert
+    data: dict
+    timestamp: str
+
+class AuthkeyAlertRequest(BaseModel):
+    phone: str
+    message: str
+    alert_type: str        # sms | voice | both
+
+class AuthkeyAlertResponse(BaseModel):
+    success: bool
+    channel: str
+    authkey_response: dict | None
+```
+
+---
+
+### Component 2: SENTINEL API Routes & WebSocket
+
+---
+
+#### [MODIFY] [sentinel.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/routes/sentinel.py) (routes)
+
+Expand from 3 endpoints to the full SENTINEL API:
+
+```python
+# Existing (enhanced):
+POST /sentinel/analyse/text          # Text analysis (SMS/WhatsApp/email)
+GET  /sentinel/number/{phone}        # Number reputation check
+GET  /sentinel/alerts                # List active alerts
+
+# New:
+POST /sentinel/analyse/audio         # Upload audio file for full analysis
+POST /sentinel/analyse/video         # Upload video for deepfake + scam analysis
+POST /sentinel/session/start         # Start a new analysis session (returns session_id)
+GET  /sentinel/session/{id}          # Get full session results
+POST /sentinel/report                # Submit citizen scam report
+POST /sentinel/alert/send            # Manually trigger alert (SMS/Voice via Authkey)
+GET  /sentinel/scenarios             # List available simulation scenarios
+GET  /sentinel/scenarios/{id}/audio  # Stream pre-recorded scenario audio
+```
+
+---
+
+#### [NEW] [sentinel_ws.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/websockets/sentinel_ws.py)
+
+Dedicated WebSocket handler for real-time SENTINEL streaming:
+
+```python
+@app.websocket("/ws/sentinel/stream")
+async def sentinel_stream(websocket: WebSocket):
+    """
+    Bidirectional WebSocket for real-time scam analysis.
+    
+    Client → Server: audio chunks (binary) or control messages (JSON)
+    Server → Client: StreamUpdate events:
+      - {"type": "transcript", "data": {"text": "...", "speaker": "CALLER", "intent": "LEGAL_THREAT"}}
+      - {"type": "threat_update", "data": {"score": 73.5, "verdict": "SCAM"}}
+      - {"type": "intent", "data": {"intent": "MONEY_DEMAND", "confidence": 0.91}}
+      - {"type": "voice_analysis", "data": {"is_scripted": true, "bg_noise": "call_centre"}}
+      - {"type": "alert", "data": {"severity": "critical", "message": "..."}}
+      - {"type": "session_complete", "data": {"full_result": {...}}}
+    """
+```
+
+This handles both **simulation playback** (pre-recorded audio streamed in chunks) and **live microphone** (WebRTC audio routed via WebSocket).
+
+---
+
+### Component 3: Section 1 — Simulation Mode (Frontend + Backend)
+
+The primary demo experience. User selects a pre-built scam scenario, "receives" a simulated call, and watches SENTINEL analyse it in real-time.
+
+---
+
+#### [NEW] [simulation_scenarios.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/simulation_scenarios.py)
+
+Manages pre-built scam call scenarios:
+
+```python
+SCENARIOS = [
+    {
+        "id": "cbi-hindi-1",
+        "title": "CBI Digital Arrest (Hindi)",
+        "description": "Caller impersonates CBI officer, threatens arrest for money laundering",
+        "language": "hi",
+        "duration_seconds": 55,
+        "audio_file": "scenarios/cbi_hindi_1.wav",      # TTS-generated
+        "transcript": [...],                              # Pre-built for fallback
+        "expected_threat_score": 87,
+        "expected_intents": ["IMPERSONATION", "LEGAL_THREAT", "MONEY_DEMAND", "INTIMIDATION"]
+    },
+    {
+        "id": "customs-english-1",
+        "title": "Customs Parcel Scam (English)",
+        ...
+    },
+    {
+        "id": "bank-kyc-hindi-1", 
+        "title": "Bank KYC Fraud (Hindi)",
+        ...
+    }
+]
+```
+
+---
+
+#### [NEW] [generate_scenario_audio.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/scripts/generate_scenario_audio.py)
+
+Script to generate TTS audio files for simulation scenarios using `gTTS` (Google Text-to-Speech) or `pyttsx3`:
+- Generates WAV/MP3 files for each scenario script
+- Supports Hindi, English, and Marathi
+- Stored in `backend/app/data/scenarios/`
+
+---
+
+#### [MODIFY] [page.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/app/sentinel/page.tsx) — Major Rewrite
+
+Redesign the SENTINEL page into a **tabbed 3-section layout**:
+
+**Tab 1 — 📞 Simulation Mode** (enhanced from current):
+- Scenario selector with 3+ pre-built scenarios (cards with description, language, duration)
+- Full-screen call simulation UI:
+  - Incoming call animation → answer → caller ID display
+  - Audio waveform visualizer (Web Audio API `AnalyserNode`)
+  - Real-time transcript panel (fed via WebSocket from backend STT)
+  - Animated threat score gauge (existing `ThreatGauge` component)
+  - Intent detection badges appearing in real-time
+  - "End Call" → full analysis report modal
+- Upload Mode sub-tab: drag-and-drop audio file → full analysis report
+- Text analysis sub-tab (existing, enhanced to use real backend)
+
+**Tab 2 — 🎙️ Live WebRTC Analysis** (NEW — Section 2):
+- Browser microphone capture with audio visualization
+- Optional video (webcam) for deepfake detection
+- Real-time analysis via WebSocket
+- Split-screen: waveform (left) + analysis dashboard (right)
+
+**Tab 3 — 📱 PSTN Integration** (NEW — Section 3):
+- Send scam alert via SMS (enter phone number → send via Authkey.io)
+- Send voice call alert (TTS → Authkey.io voice API)
+- IVR simulation panel
+- Delivery status tracking
+
+---
+
+#### [NEW] [AudioVisualizer.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/components/sentinel/AudioVisualizer.tsx)
+
+Real-time audio waveform/frequency visualizer using Web Audio API:
+- Canvas-based rendering
+- Configurable: waveform mode, frequency bars mode, circular mode
+- Colour-coded by threat level (green → yellow → red)
+
+---
+
+#### [NEW] [CallSimulator.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/components/sentinel/CallSimulator.tsx)
+
+Encapsulated call simulation component:
+- Incoming call animation (ringing, caller ID)
+- Audio playback of scenario audio
+- WebSocket connection for real-time analysis
+- Call duration timer, mute/speaker controls
+- End call → summary report
+
+---
+
+#### [NEW] [TranscriptPanel.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/components/sentinel/TranscriptPanel.tsx)
+
+Real-time transcript display:
+- Colour-coded by speaker (CALLER = red, VICTIM = gray)
+- Intent badges inline
+- Auto-scroll
+- Timestamp display
+- Language indicator
+
+---
+
+#### [NEW] [AnalysisReport.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/components/sentinel/AnalysisReport.tsx)
+
+Post-analysis summary report modal/card:
+- Threat score with large gauge
+- Scam type classification
+- Full transcript with intent highlights
+- Voice analysis summary
+- Script similarity score
+- Recommended actions
+- "Send Alert" button (triggers Section 3)
+
+---
+
+### Component 4: Section 2 — Real WebRTC Mode
+
+Live browser-based audio/video capture for real-time scam analysis.
+
+---
+
+#### [NEW] [LiveAnalysis.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/components/sentinel/LiveAnalysis.tsx)
+
+WebRTC live analysis component:
+- `navigator.mediaDevices.getUserMedia({ audio: true, video: optional })` 
+- `MediaRecorder` API captures audio chunks (WebM/opus)
+- Chunks sent to backend via WebSocket every 2–3 seconds
+- Backend runs STT + analysis on each chunk
+- Results streamed back via WebSocket
+- Visual layout:
+  - Left panel: Audio waveform + optional video preview
+  - Right panel: Live transcript + threat gauge + intent badges
+  - Bottom: Session controls (start/stop, mute, video toggle)
+
+**Audio Pipeline (Browser Side)**:
+```
+getUserMedia → MediaRecorder (timeslice=3000ms) 
+  → onDataAvailable → WebSocket.send(blob)
+  → receive analysis updates → update UI
+```
+
+**Backend Side** (handled by `sentinel_ws.py`):
+```
+Receive audio chunk → write to temp buffer
+  → when buffer > 3s: run Faster-Whisper STT
+  → classify transcript → update threat score
+  → broadcast StreamUpdate via WebSocket
+```
+
+---
+
+### Component 5: Section 3 — Real PSTN via Authkey.io
+
+Integration with Authkey.io for real SMS alerts and TTS voice calls.
+
+---
+
+#### [NEW] [authkey_service.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/services/authkey_service.py)
+
+Authkey.io API client:
+
+```python
+class AuthkeyService:
+    """Integration with Authkey.io for SMS and Voice alerts."""
+    
+    BASE_URL = "https://api.authkey.io/request"
+    
+    async def send_sms(self, phone: str, message: str, sender_id: str = "RAKSHA") -> dict:
+        """Send SMS alert via Authkey.io API.
+        
+        GET https://api.authkey.io/request?authkey=KEY&mobile=PHONE&country_code=91
+            &sms=MESSAGE&sender=RAKSHA
+        """
+    
+    async def send_voice_alert(self, phone: str, message: str) -> dict:
+        """Place outbound TTS voice call via Authkey.io.
+        
+        GET https://api.authkey.io/request?authkey=KEY&mobile=PHONE&country_code=91
+            &voice=MESSAGE
+        """
+    
+    async def send_combined_alert(self, phone: str, sms_message: str, voice_message: str) -> dict:
+        """Send both SMS + Voice call simultaneously.
+        
+        Authkey supports parallel channels in single request:
+            &sms=SMS_MSG&sender=RAKSHA&voice=VOICE_MSG
+        """
+    
+    async def send_scam_alert(self, phone: str, threat_score: float, scam_type: str) -> dict:
+        """High-level method: formats and sends a RAKSHA scam alert.
+        
+        SMS: "⚠️ RAKSHA AI Alert: Potential {scam_type} detected (Risk: {threat_score}%). 
+              Do NOT transfer money. Hang up immediately. Report: cybercrime.gov.in | 1930"
+        
+        Voice: "Attention! RAKSHA AI has detected a potential scam call targeting you. 
+                The risk level is {threat_score} percent. Please hang up immediately and 
+                do not transfer any money. For help, call the cyber crime helpline 1930."
+        """
+```
+
+---
+
+#### [NEW] [PSTNPanel.tsx](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/components/sentinel/PSTNPanel.tsx)
+
+PSTN integration UI:
+
+- **SMS Alert Section**:
+  - Phone number input (+91 format)
+  - Custom message or auto-generated from analysis
+  - "Send SMS Alert" button → calls backend → shows delivery status
+  - Phone notification mockup preview
+
+- **Voice Call Alert Section**:
+  - Phone number input
+  - TTS message preview (editable)
+  - "Place Alert Call" button → Authkey TTS voice call
+  - Call status indicator (queued → ringing → connected → completed)
+
+- **Alert History**:
+  - Table of sent alerts with timestamps, channels, delivery status
+  - Stored in Supabase
+
+- **IVR Simulation**:
+  - Phone keypad UI in browser
+  - Pre-built IVR flow: "Press 1 to report a scam, Press 2 to check a number..."
+  - Audio prompts via Web Audio API TTS
+  - Backend processes keypad input → routes to appropriate KAVACH action
+
+---
+
+#### [MODIFY] [config.py](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/app/config.py)
+
+Add Authkey.io and SENTINEL configuration:
+
+```python
+# Authkey.io
+authkey_api_key: str = ""
+authkey_sender_id: str = "RAKSHA"
+authkey_country_code: str = "91"
+
+# SENTINEL
+sentinel_whisper_model: str = "base"          # tiny | base | small | medium | large-v3-turbo
+sentinel_whisper_device: str = "cpu"           # cpu | cuda
+sentinel_threat_threshold_high: float = 70.0
+sentinel_threat_threshold_medium: float = 40.0
+sentinel_similarity_threshold: float = 0.75
+```
+
+---
+
+### Component 6: Frontend API Client & Types
+
+---
+
+#### [MODIFY] [api.ts](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/lib/api.ts)
+
+Add new SENTINEL API functions:
+
+```typescript
+// New SENTINEL endpoints
+export const analyseAudioFile = (file: File) => { /* multipart upload */ }
+export const getScenarios = () => { /* GET /sentinel/scenarios */ }
+export const getScenarioAudio = (id: string) => { /* GET /sentinel/scenarios/{id}/audio */ }
+export const startSession = (type: string) => { /* POST /sentinel/session/start */ }
+export const getSessionResult = (id: string) => { /* GET /sentinel/session/{id} */ }
+export const sendAlert = (phone: string, message: string, type: string) => { /* POST /sentinel/alert/send */ }
+export const submitReport = (data: any) => { /* POST /sentinel/report */ }
+```
+
+---
+
+#### [NEW] [useSentinelStream.ts](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/hooks/useSentinelStream.ts)
+
+Custom React hook for SENTINEL WebSocket streaming:
+
+```typescript
+export function useSentinelStream() {
+    const [transcript, setTranscript] = useState<TranscriptSegment[]>([])
+    const [threatScore, setThreatScore] = useState(0)
+    const [intents, setIntents] = useState<string[]>([])
+    const [isConnected, setIsConnected] = useState(false)
+    
+    const connect = (sessionId: string) => { /* WebSocket to /ws/sentinel/stream */ }
+    const sendAudioChunk = (blob: Blob) => { /* Binary WebSocket message */ }
+    const disconnect = () => { /* Clean close */ }
+    
+    return { transcript, threatScore, intents, isConnected, connect, sendAudioChunk, disconnect }
+}
+```
+
+---
+
+#### [NEW] [useAudioCapture.ts](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/frontend/src/hooks/useAudioCapture.ts)
+
+Custom React hook for browser audio capture (WebRTC):
+
+```typescript
+export function useAudioCapture() {
+    const [isRecording, setIsRecording] = useState(false)
+    const [audioLevel, setAudioLevel] = useState(0)
+    
+    const start = async () => { /* getUserMedia + MediaRecorder */ }
+    const stop = () => { /* Stop recording, clean up */ }
+    const onChunk = (callback: (blob: Blob) => void) => { /* Register chunk handler */ }
+    
+    return { isRecording, audioLevel, start, stop, onChunk, analyserNode }
+}
+```
+
+---
+
+### Component 7: Backend Dependencies
+
+---
+
+#### [MODIFY] [requirements.txt](file:///c:/Users/hp/Desktop/Et-AI_Hack/ET-AI-Hack/backend/requirements.txt)
+
+Add new dependencies:
+
+```txt
+# SENTINEL — Speech-to-Text
+faster-whisper>=1.1.0
+# SENTINEL — NLP & Classification
+sentence-transformers>=3.0.0
+transformers>=4.40.0
+torch>=2.0.0            # already needed by ultralytics
+# SENTINEL — Voice Analysis
+librosa>=0.10.0
+soundfile>=0.12.0
+# SENTINEL — Audio utilities
+pydub>=0.25.0
+# SENTINEL — Authkey.io (uses httpx, already in deps)
+# httpx already present
+# TTS for scenario generation
+gTTS>=2.5.0
+```
+
+> [!NOTE]
+> `torch` is already a transitive dependency of `ultralytics` in current requirements. `transformers` and `sentence-transformers` pull in compatible versions automatically.
+
+---
+
+### Component 8: Data & Demo Assets
+
+---
+
+#### [NEW] `backend/app/data/scenarios/` directory
+
+Pre-generated audio files for 3+ scam scenarios:
+- `cbi_hindi_1.wav` — CBI digital arrest scam in Hindi (~55s)
+- `customs_english_1.wav` — Customs parcel scam in English (~45s)
+- `bank_kyc_hindi_1.wav` — Bank KYC fraud in Hindi (~40s)
+
+Generated via `gTTS` or recorded manually.
+
+---
+
+#### [NEW] `backend/app/data/scam_corpus.json`
+
+30+ scam script patterns with metadata:
+```json
+[
+  {
+    "id": "cbi-arrest-01",
+    "category": "DIGITAL_ARREST",
+    "language": "hi",
+    "text": "Main CBI se bol raha hoon. Aapka Aadhaar card money laundering case mein...",
+    "intents": ["IMPERSONATION", "LEGAL_THREAT"],
+    "source": "MHA advisory"
+  },
+  ...
+]
+```
+
+---
+
+## File Summary (All Changes)
+
+| Action | File | Description |
+|--------|------|-------------|
+| **NEW** | `backend/app/services/sentinel_engine.py` | Core analysis pipeline orchestrator |
+| **NEW** | `backend/app/services/stt_service.py` | Faster-Whisper STT wrapper |
+| **NEW** | `backend/app/services/scam_classifier.py` | Multi-layer scam classification |
+| **NEW** | `backend/app/services/voice_analyser.py` | Acoustic feature extraction |
+| **NEW** | `backend/app/services/authkey_service.py` | Authkey.io SMS + Voice integration |
+| **NEW** | `backend/app/services/simulation_scenarios.py` | Scenario management |
+| **NEW** | `backend/app/websockets/sentinel_ws.py` | SENTINEL WebSocket handler |
+| **NEW** | `backend/app/data/scam_corpus.json` | Curated scam script corpus |
+| **NEW** | `backend/app/data/scenarios/` | Pre-recorded audio files |
+| **NEW** | `backend/scripts/generate_scenario_audio.py` | TTS audio generation script |
+| **MODIFY** | `backend/app/services/sentinel_service.py` | Upgrade from mock → real engine |
+| **MODIFY** | `backend/app/routes/sentinel.py` | Expand to 10+ endpoints |
+| **MODIFY** | `backend/app/models/schemas.py` | Add SENTINEL + Authkey models |
+| **MODIFY** | `backend/app/config.py` | Add Authkey + SENTINEL config |
+| **MODIFY** | `backend/app/main.py` | Register new WS routes |
+| **MODIFY** | `backend/requirements.txt` | Add ML/audio dependencies |
+| **MODIFY** | `frontend/src/app/sentinel/page.tsx` | Major rewrite → 3-tab layout |
+| **NEW** | `frontend/src/components/sentinel/AudioVisualizer.tsx` | Waveform visualizer |
+| **NEW** | `frontend/src/components/sentinel/CallSimulator.tsx` | Call simulation UI |
+| **NEW** | `frontend/src/components/sentinel/TranscriptPanel.tsx` | Real-time transcript |
+| **NEW** | `frontend/src/components/sentinel/AnalysisReport.tsx` | Post-analysis report |
+| **NEW** | `frontend/src/components/sentinel/LiveAnalysis.tsx` | WebRTC live mode |
+| **NEW** | `frontend/src/components/sentinel/PSTNPanel.tsx` | Authkey.io PSTN UI |
+| **NEW** | `frontend/src/hooks/useSentinelStream.ts` | WebSocket streaming hook |
+| **NEW** | `frontend/src/hooks/useAudioCapture.ts` | Audio capture hook |
+| **MODIFY** | `frontend/src/lib/api.ts` | Add new SENTINEL API calls |
+
+---
+
+## Verification Plan
+
+### Automated Tests
+
+```bash
+# Backend — test SENTINEL analysis engine
+cd backend && python -m pytest tests/test_sentinel.py -v
+
+# Backend — test Authkey service (mock mode)  
+cd backend && python -m pytest tests/test_authkey.py -v
+
+# Frontend — build check
+cd frontend && npm run build
+```
+
+### Manual Verification
+
+1. **Section 1 — Simulation**:
+   - Select "CBI Digital Arrest (Hindi)" scenario → click "Simulate Call"
+   - Verify: audio plays, transcript appears line-by-line via WebSocket, threat gauge rises, intents appear
+   - End call → verify analysis report shows correct scam classification
+   - Upload an audio file → verify full analysis completes
+
+2. **Section 2 — WebRTC**:
+   - Click "Start Live Analysis" → grant microphone permission
+   - Speak scam-like phrases → verify real-time transcript and threat scoring
+   - Verify waveform visualizer responds to audio input
+
+3. **Section 3 — PSTN**:
+   - Enter a real phone number → send SMS alert → verify SMS received
+   - Enter a real phone number → place voice call → verify TTS call received
+   - Verify alert history shows delivery status
+
+### Demo Walkthrough
+- Full end-to-end demo: Simulate scam call → auto-detect → show report → send SMS alert to demo phone number → phone receives alert in real-time
