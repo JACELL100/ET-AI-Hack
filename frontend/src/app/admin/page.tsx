@@ -288,7 +288,7 @@ export default function AdminPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1.25rem", marginBottom: "1.75rem" }}>
             {stats.map(({ label, value, delta, icon: Icon, color }) => (
               <div key={label} className="stat-card">
-                <div style={{ display: "flex", justify: "space-between", alignItems: "flex-start", marginBottom: "1.25rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.25rem" }}>
                   <div style={{ width: "38px", height: "38px", borderRadius: "8px", background: `${color}15`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Icon size={17} color={color} strokeWidth={2} />
                   </div>

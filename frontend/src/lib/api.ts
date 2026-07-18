@@ -56,7 +56,7 @@ export const getDashboardStats = () =>
 export const getDashboardAlerts = () =>
   api.get<ApiResponse<Alert[]>>("/api/v1/dashboard/alerts").then((r) => r.data);
 
-// ── SENTINEL ──────────────────────────────────────────────────────────────────
+// ── SENTINEL ──────────────────────────────────────────────────────────────
 export const analyseText = (text: string) =>
   api
     .post<ApiResponse<SentinelAnalysisResult>>(
@@ -74,6 +74,7 @@ export const analyseAudio = (file: File) => {
       form,
       {
         headers: { "Content-Type": "multipart/form-data" },
+        timeout: 120_000,
       },
     )
     .then((r) => r.data);
@@ -88,6 +89,32 @@ export const checkPhoneNumber = (phone: string) =>
 
 export const getSentinelAlerts = () =>
   api.get<ApiResponse<Alert[]>>("/api/v1/sentinel/alerts").then((r) => r.data);
+
+export const getScenarios = () =>
+  api.get<ApiResponse<unknown[]>>("/api/v1/sentinel/scenarios").then((r) => r.data);
+
+export const getScenarioById = (id: string) =>
+  api.get<ApiResponse<unknown>>(`/api/v1/sentinel/scenarios/${id}`).then((r) => r.data);
+
+export const getScenarioAudioUrl = (id: string) =>
+  `${BASE_URL}/api/v1/sentinel/scenarios/${id}/audio`;
+
+export const sendSentinelAlert = (payload: {
+  phone: string;
+  message?: string;
+  alert_type: string;
+  threat_score?: number;
+  scam_type?: string;
+}) =>
+  api.post<ApiResponse<unknown>>("/api/v1/sentinel/alert/send", payload).then((r) => r.data);
+
+export const submitScamReport = (payload: {
+  phone_number?: string;
+  description: string;
+  scam_type?: string;
+  evidence_text?: string;
+}) =>
+  api.post<ApiResponse<unknown>>("/api/v1/sentinel/report", payload).then((r) => r.data);
 
 // ── NETRA ─────────────────────────────────────────────────────────────────────
 export const scanCurrency = (file: File, denomination?: string) => {

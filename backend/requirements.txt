@@ -28,3 +28,21 @@ pytesseract>=0.3.10
 
 # paddleocr is a third OCR fallback — large install, import-guarded
 # paddleocr>=2.7.0
+
+# SENTINEL — Speech-to-Text (Faster-Whisper)
+faster-whisper>=1.1.0
+
+# SENTINEL — NLP & Classification
+sentence-transformers>=3.0.0
+transformers>=4.40.0
+
+# SENTINEL — Voice Analysis
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# SENTINEL — Audio utilities
+pydub>=0.25.0
+
+# SENTINEL — TTS for scenario audio generation
+gTTS>=2.5.0
+

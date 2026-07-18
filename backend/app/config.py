@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_key: str = ""
 
+    # Authkey.io — SMS & Voice alerts
+    authkey_api_key: str = ""
+    authkey_sender_id: str = "RAKSHA"
+    authkey_country_code: str = "91"
+
+    # SENTINEL — AI model configuration
+    sentinel_whisper_model: str = "base"        # tiny | base | small | medium | large-v3-turbo
+    sentinel_whisper_device: str = "cpu"         # cpu | cuda
+    sentinel_threat_threshold_high: float = 70.0
+    sentinel_threat_threshold_medium: float = 40.0
+    sentinel_similarity_threshold: float = 0.75
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

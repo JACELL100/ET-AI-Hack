@@ -61,6 +61,82 @@ class SentinelAnalysisResult(BaseModel):
     confidence: float
 
 
+class TranscriptSegment(BaseModel):
+    speaker: str = "CALLER"
+    text: str = ""
+    start_time: float = 0.0
+    end_time: float = 0.0
+    language: str = "en"
+    intent: str = "NORMAL"
+    confidence: float = 0.0
+
+
+class VoiceAnalysis(BaseModel):
+    is_scripted: bool = False
+    scripted_confidence: float = 0.0
+    speech_rate: float = 0.0
+    pitch_mean_hz: float = 0.0
+    pitch_variance: float = 0.0
+    silence_ratio: float = 0.0
+    pause_count: int = 0
+    bg_noise_type: str = "unknown"
+
+
+class SentinelFullResult(BaseModel):
+    session_id: str = ""
+    threat_score: float = 0.0
+    verdict: str = "SAFE"
+    scam_type: Optional[str] = None
+    transcript: list[TranscriptSegment] = Field(default_factory=list)
+    intents_detected: list[str] = Field(default_factory=list)
+    voice_analysis: Optional[VoiceAnalysis] = None
+    script_similarity: float = 0.0
+    confidence: float = 0.0
+    processing_time_ms: int = 0
+    alerts_sent: list[str] = Field(default_factory=list)
+    language: str = "en"
+
+
+class SentinelStreamUpdate(BaseModel):
+    type: str  # transcript | threat_update | intent | alert | session_complete
+    data: dict = Field(default_factory=dict)
+    timestamp: float = 0.0
+
+
+class AuthkeyAlertRequest(BaseModel):
+    phone: str
+    message: Optional[str] = None
+    alert_type: str = "sms"  # sms | voice | both
+    threat_score: Optional[float] = None
+    scam_type: Optional[str] = None
+
+
+class AuthkeyAlertResponse(BaseModel):
+    success: bool = False
+    channel: str = ""
+    phone: str = ""
+    authkey_response: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class ScenarioInfo(BaseModel):
+    id: str
+    title: str
+    description: str
+    language: str
+    duration_seconds: int
+    expected_threat_score: float
+    expected_intents: list[str] = Field(default_factory=list)
+    has_audio: bool = False
+
+
+class SentinelReportRequest(BaseModel):
+    phone_number: Optional[str] = None
+    description: str = ""
+    scam_type: Optional[str] = None
+    evidence_text: Optional[str] = None
+
+
 # ── NETRA ───────────────────────────────────────────────────────────────────
 class SecurityFeature(BaseModel):
     name: str

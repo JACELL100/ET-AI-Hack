@@ -1,0 +1,2 @@
+# placeholder — audio files are generated via:
+#   cd backend && python -m scripts.generate_scenario_audio

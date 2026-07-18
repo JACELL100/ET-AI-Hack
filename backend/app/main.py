@@ -18,6 +18,7 @@ from app.config import settings
 from app.models.schemas import ok
 from app.routes import auth, dashboard, drishti, jaal, kavach, netra, sentinel
 from app.websockets.manager import manager
+from app.websockets.sentinel_ws import sentinel_ws_handler
 
 app = FastAPI(
     title="RAKSHA AI API",
@@ -54,7 +55,14 @@ app.include_router(drishti.router, prefix=API_PREFIX)
 app.include_router(kavach.router, prefix=API_PREFIX)
 
 
-# ── WebSocket hub: /ws/{module} ─────────────────────────────────────────────
+# ── SENTINEL WebSocket: /ws/sentinel/stream ─────────────────────────────────
+@app.websocket("/ws/sentinel/stream")
+async def ws_sentinel_stream(websocket: WebSocket):
+    """Dedicated SENTINEL streaming endpoint for real-time scam analysis."""
+    await sentinel_ws_handler(websocket)
+
+
+# ── Generic WebSocket hub: /ws/{module} ─────────────────────────────────────
 @app.websocket("/ws/{module}")
 async def ws_module(websocket: WebSocket, module: str):
     channel = f"ws:{module}"
