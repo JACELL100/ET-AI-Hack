@@ -243,4 +243,48 @@ export const register = (data: RegisterData) =>
     )
     .then((r) => r.data);
 
+// ── WHATSAPP SCANNER ──────────────────────────────────────────────────────────
+export const getWhatsAppStatus = () =>
+  api
+    .get<ApiResponse<import("@/types").WhatsAppStatus>>("/api/v1/whatsapp/status")
+    .then((r) => r.data);
+
+export const getWhatsAppChats = () =>
+  api
+    .get<ApiResponse<import("@/types").WhatsAppChat[]>>("/api/v1/whatsapp/chats")
+    .then((r) => r.data);
+
+export const analyseWhatsAppChat = (chatId: string, limit?: number) =>
+  api
+    .post<ApiResponse<import("@/types").ChatAnalysisResult>>(
+      "/api/v1/whatsapp/analyse",
+      { chat_id: chatId, limit: limit ?? 100 },
+    )
+    .then((r) => r.data);
+
+export const analyseAllWhatsAppChats = () =>
+  api
+    .post<ApiResponse<import("@/types").BatchAnalysisResult>>(
+      "/api/v1/whatsapp/analyse/all",
+    )
+    .then((r) => r.data);
+
+export const disconnectWhatsApp = () =>
+  api
+    .post<ApiResponse<{ disconnected: boolean }>>("/api/v1/whatsapp/disconnect")
+    .then((r) => r.data);
+
+export const clearWhatsAppSession = () =>
+  api
+    .post<ApiResponse<{ cleared: boolean; message: string }>>("/api/v1/whatsapp/clear-session")
+    .then((r) => r.data);
+
+export const getWhatsAppMessages = (chatId: string, limit?: number) =>
+  api
+    .get<ApiResponse<{ messages: import("@/types").WhatsAppMessage[]; chatName: string }>>(
+      `/api/v1/whatsapp/chat/${chatId}/messages`,
+      { params: { limit: limit ?? 100 } },
+    )
+    .then((r) => r.data);
+
 export default api;

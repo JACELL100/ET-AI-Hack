@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     sentinel_threat_threshold_medium: float = 40.0
     sentinel_similarity_threshold: float = 0.75
 
+    # Groq AI — LLM for WhatsApp chat analysis
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_max_tokens: int = 2048
+
+    # WhatsApp Bridge (Node.js sidecar)
+    whatsapp_bridge_url: str = "http://localhost:3001"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

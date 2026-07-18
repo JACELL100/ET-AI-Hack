@@ -46,3 +46,6 @@ pydub>=0.25.0
 # SENTINEL — TTS for scenario audio generation
 gTTS>=2.5.0
 
+# WHATSAPP / KAVACH-WA — Groq AI SDK for chat analysis
+groq>=0.12.0
+

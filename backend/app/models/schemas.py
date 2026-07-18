@@ -339,3 +339,65 @@ class NetraHistoryItem(BaseModel):
     verdict: str
     confidence: float
     denomination: Optional[str] = None
+
+
+# ── WHATSAPP (KAVACH-WA) ───────────────────────────────────────────────────
+class WhatsAppStatus(BaseModel):
+    connected: bool = False
+    qrReady: bool = False
+    phone: Optional[str] = None
+
+
+class WhatsAppChat(BaseModel):
+    id: str
+    name: str
+    isGroup: bool = False
+    timestamp: Optional[int] = None
+    unreadCount: int = 0
+    lastMessage: Optional[str] = None
+
+
+class WhatsAppMessage(BaseModel):
+    id: str
+    from_field: str = Field(default="", alias="from")
+    author: str = ""
+    body: str = ""
+    timestamp: int = 0
+    fromMe: bool = False
+    type: str = "chat"
+
+    model_config = {"populate_by_name": True}
+
+
+class FlaggedMessage(BaseModel):
+    message_index: int
+    message_body: str = ""
+    risk_level: str = "low"                  # critical | high | medium | low
+    threat_type: str = "SUSPICIOUS"          # SCAM | PHISHING | FINANCIAL_FRAUD | IDENTITY_THEFT | SOCIAL_ENGINEERING | THREAT | SUSPICIOUS
+    explanation: str = ""
+    recommendation: str = ""
+
+
+class ChatAnalysisResult(BaseModel):
+    chat_id: str
+    chat_name: str
+    overall_risk: str = "safe"               # safe | low | medium | high | critical
+    summary: str = ""
+    flagged_messages: list[FlaggedMessage] = Field(default_factory=list)
+    key_findings: list[str] = Field(default_factory=list)
+    total_messages_scanned: int = 0
+    flagged_count: int = 0
+    scan_time_ms: int = 0
+
+
+class ChatAnalyseRequest(BaseModel):
+    chat_id: str
+    limit: int = 100
+
+
+class BatchAnalysisResult(BaseModel):
+    total_chats: int = 0
+    chats_scanned: int = 0
+    high_risk_chats: list[ChatAnalysisResult] = Field(default_factory=list)
+    safe_chats: int = 0
+    scan_time_ms: int = 0

@@ -210,3 +210,61 @@ export interface ApiResponse<T = unknown> {
   error?: string;
   message?: string;
 }
+
+// ── WhatsApp Scanner (KAVACH-WA) ──────────────────────────────────────────────
+export interface WhatsAppStatus {
+  connected: boolean;
+  qrReady: boolean;
+  phone: string | null;
+  error?: string;
+}
+
+export interface WhatsAppChat {
+  id: string;
+  name: string;
+  isGroup: boolean;
+  timestamp: number | null;
+  unreadCount: number;
+  lastMessage: string | null;
+}
+
+export interface WhatsAppMessage {
+  id: string;
+  from: string;
+  author?: string;
+  body: string;
+  timestamp: number;
+  fromMe: boolean;
+  type: string;
+}
+
+export interface FlaggedMessage {
+  message_index: number;
+  message_body: string;
+  risk_level: "critical" | "high" | "medium" | "low";
+  threat_type: string;
+  explanation: string;
+  recommendation: string;
+}
+
+export interface ChatAnalysisResult {
+  chat_id: string;
+  chat_name: string;
+  overall_risk: "safe" | "low" | "medium" | "high" | "critical" | "unknown";
+  summary: string;
+  flagged_messages: FlaggedMessage[];
+  key_findings: string[];
+  total_messages_scanned: number;
+  flagged_count: number;
+  scan_time_ms: number;
+  groq_called?: boolean;
+  groq_error?: string;
+}
+
+export interface BatchAnalysisResult {
+  total_chats: number;
+  chats_scanned: number;
+  high_risk_chats: ChatAnalysisResult[];
+  safe_chats: number;
+  scan_time_ms: number;
+}

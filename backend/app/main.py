@@ -16,9 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.models.schemas import ok
-from app.routes import auth, dashboard, drishti, jaal, kavach, netra, sentinel
+from app.routes import auth, dashboard, drishti, jaal, kavach, netra, sentinel, whatsapp
 from app.websockets.manager import manager
 from app.websockets.sentinel_ws import sentinel_ws_handler
+from app.websockets.whatsapp_ws import whatsapp_ws_handler
 
 app = FastAPI(
     title="RAKSHA AI API",
@@ -53,6 +54,7 @@ app.include_router(netra.router, prefix=API_PREFIX)
 app.include_router(jaal.router, prefix=API_PREFIX)
 app.include_router(drishti.router, prefix=API_PREFIX)
 app.include_router(kavach.router, prefix=API_PREFIX)
+app.include_router(whatsapp.router, prefix=API_PREFIX)
 
 
 # ── SENTINEL WebSocket: /ws/sentinel/stream ─────────────────────────────────
@@ -60,6 +62,13 @@ app.include_router(kavach.router, prefix=API_PREFIX)
 async def ws_sentinel_stream(websocket: WebSocket):
     """Dedicated SENTINEL streaming endpoint for real-time scam analysis."""
     await sentinel_ws_handler(websocket)
+
+
+# ── WHATSAPP WebSocket: /ws/whatsapp ────────────────────────────────────────
+@app.websocket("/ws/whatsapp")
+async def ws_whatsapp(websocket: WebSocket):
+    """Relay WhatsApp bridge events (QR, auth, messages) to the frontend."""
+    await whatsapp_ws_handler(websocket)
 
 
 # ── Generic WebSocket hub: /ws/{module} ─────────────────────────────────────
