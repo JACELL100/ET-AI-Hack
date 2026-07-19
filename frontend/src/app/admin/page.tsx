@@ -11,15 +11,7 @@ import {
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useAuth } from "@/components/providers/AuthContext";
 import { ThreatGauge } from "@/components/ui/ThreatGauge";
-
-const navItems = [
-  { label: "Admin Panel", href: "/admin", icon: LayoutDashboard },
-  { label: "SENTINEL", href: "/sentinel", icon: Shield, color: "#E63A1E" },
-  { label: "NETRA", href: "/netra", icon: Eye, color: "#10B981" },
-  { label: "JAAL", href: "/jaal", icon: Network, color: "#818CF8" },
-  { label: "DRISHTI", href: "/drishti", icon: Map, color: "#F59E0B" },
-  { label: "KAVACH", href: "/kavach", icon: MessageCircle, color: "#22D3EE" },
-];
+import { AdminSidebar, adminNavItems } from "@/components/layout/AdminSidebar";
 
 const mockAlerts = [
   { id: 1, type: "Digital Arrest Scam", severity: "critical", location: "Mumbai", time: "2m ago", score: 87 },
@@ -78,7 +70,7 @@ export default function AdminPage() {
   }
 
   // Not logged in: Show Admin Login UI directly on /admin
-  if (!user) {
+  if (!user || !user.isAdmin) {
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "var(--bg-primary)", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem", position: "relative", overflow: "hidden" }}>
         {/* Background grid */}
@@ -86,7 +78,6 @@ export default function AdminPage() {
         <div style={{ position: "absolute", top: "30%", left: "50%", transform: "translate(-50%,-50%)", width: "500px", height: "500px", background: "radial-gradient(circle, rgba(230,58,30,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
 
         <div style={{ width: "100%", maxWidth: "420px", position: "relative", zIndex: 1 }}>
-          {/* Logo */}
           <div style={{ textAlign: "center", marginBottom: "2rem" }}>
             <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.625rem", textDecoration: "none", marginBottom: "1.5rem" }}>
               <div style={{ width: "44px", height: "44px", background: "var(--accent)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -96,22 +87,20 @@ export default function AdminPage() {
                 RAKSHA<span style={{ color: "var(--accent)" }}>·AI</span>
               </span>
             </Link>
-            <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.75rem", color: "var(--text-primary)", marginBottom: "0.375rem" }}>Command Centre</h1>
-            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>Authorized Personnel Login Only</p>
+            <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.75rem", color: "var(--text-primary)", marginBottom: "0.375rem" }}>Admin Portal Login</h1>
+            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>Access Command Centre Intelligence</p>
           </div>
 
-          {/* Card */}
           <div style={{ background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-xl)", padding: "2rem" }}>
-            {/* Error */}
             {loginError && <p style={{ fontSize: "0.8125rem", color: "#E63A1E", padding: "0.625rem 0.875rem", background: "rgba(230,58,30,0.1)", borderRadius: "var(--radius-md)", border: "1px solid rgba(230,58,30,0.2)", marginBottom: "1.25rem" }}>{loginError}</p>}
 
-            <button 
-              onClick={handleAdminGoogleLogin} 
-              disabled={loginLoading} 
+            <button
+              onClick={handleAdminGoogleLogin}
+              disabled={loginLoading}
               style={{ width: "100%", padding: "0.875rem", background: "white", color: "#111827", border: "1px solid #D1D5DB", borderRadius: "var(--radius-md)", fontSize: "0.9375rem", fontWeight: 700, cursor: loginLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem", transition: "all 200ms ease" }}
             >
               {loginLoading ? (
-                <><span style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid #E63A1E", borderTopColor: "transparent", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Authenticating...</>
+                <><span style={{ width: "18px", height: "18px", borderRadius: "50%", border: "2px solid #E63A1E", borderTopColor: "transparent", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> Signing in...</>
               ) : (
                 <>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -120,34 +109,18 @@ export default function AdminPage() {
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
-                  Sign in with Google
+                  Sign in with Google (Admin Portal)
                 </>
               )}
             </button>
           </div>
-        </div>
-
-        <style jsx global>{`
-          @keyframes spin { to { transform: rotate(360deg); } }
-        `}</style>
-      </div>
-    );
-  }
-
-  // Logged in but not in admins table yet
-  if (!user.isAdmin) {
-    return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ width: "40px", height: "40px", borderRadius: "50%", border: "3px solid var(--accent)", borderTopColor: "transparent", animation: "spin 0.8s linear infinite", margin: "0 auto 1rem" }} />
-          <span>Verifying admin authorization...</span>
         </div>
       </div>
     );
   }
 
   const stats = [
-    { label: "Active Alerts", value: "12", delta: "+3", icon: AlertTriangle, color: "#E63A1E" },
+    { label: "Active Threat Alerts", value: `${activeAlerts}`, delta: "+3", icon: AlertTriangle, color: "var(--accent)" },
     { label: "Scams Detected Today", value: "47", delta: "+8", icon: Shield, color: "#E63A1E" },
     { label: "Counterfeits Found", value: "6", delta: "+1", icon: Eye, color: "#10B981" },
     { label: "Citizens Protected", value: "1,284", delta: "+142", icon: Users, color: "#818CF8" },
@@ -156,98 +129,7 @@ export default function AdminPage() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "var(--bg-primary)" }}>
       {/* Sidebar */}
-      <aside
-        style={{
-          width: "240px",
-          flexShrink: 0,
-          backgroundColor: "var(--bg-secondary)",
-          borderRight: "1px solid var(--bg-border)",
-          display: "flex",
-          flexDirection: "column",
-          padding: "1.5rem 1rem",
-          position: "fixed",
-          top: 0,
-          bottom: 0,
-          left: 0,
-          zIndex: 50,
-          overflowY: "auto",
-        }}
-      >
-        {/* Logo */}
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", marginBottom: "2rem", padding: "0 0.5rem" }}>
-          <div style={{ width: "32px", height: "32px", background: "var(--accent)", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Shield size={17} color="white" strokeWidth={2.5} />
-          </div>
-          <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-            RAKSHA<span style={{ color: "var(--accent)" }}>·AI</span>
-          </span>
-        </Link>
-
-        {/* Live status */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.625rem 0.875rem", background: "rgba(230,58,30,0.08)", border: "1px solid rgba(230,58,30,0.2)", borderRadius: "8px", marginBottom: "1.5rem" }}>
-          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--accent)", animation: "pulse-glow 2s infinite" }} />
-          <span style={{ fontSize: "0.75rem", color: "var(--accent)", fontWeight: 600, letterSpacing: "0.06em" }}>
-            {activeAlerts} ACTIVE ALERTS
-          </span>
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-          {navItems.map(({ label, href, icon: Icon, color }) => {
-            const isActive = pathname === href;
-            return (
-              <Link
-                key={label}
-                href={href}
-                className={`sidebar-nav-item ${isActive ? "active" : ""}`}
-              >
-                <Icon size={17} color={isActive ? "var(--accent)" : color || "currentColor"} strokeWidth={2} />
-                <span>{label}</span>
-                {isActive && <div style={{ marginLeft: "auto", width: "6px", height: "6px", borderRadius: "50%", background: "var(--accent)" }} />}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Bottom */}
-        <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <button
-            onClick={toggleTheme}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.625rem",
-              width: "100%",
-              padding: "0.625rem 0.875rem",
-              background: "none",
-              border: "1px solid var(--bg-border)",
-              borderRadius: "8px",
-              cursor: "pointer",
-              color: "var(--text-secondary)",
-              fontSize: "0.8125rem",
-              fontWeight: 500,
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-            {theme === "dark" ? "Light Mode" : "Dark Mode"}
-          </button>
-          <button
-            onClick={logout}
-            style={{
-              padding: "0.5rem",
-              background: "transparent",
-              color: "var(--text-muted)",
-              border: "none",
-              fontSize: "0.75rem",
-              textDecoration: "underline",
-              cursor: "pointer",
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
-      </aside>
+      <AdminSidebar />
 
       {/* Main Content */}
       <div style={{ marginLeft: "240px", flex: 1, display: "flex", flexDirection: "column" }}>
@@ -267,7 +149,12 @@ export default function AdminPage() {
           }}
         >
           <div>
-            <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Command Centre</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Command Centre</div>
+              <span style={{ fontSize: "0.625rem", fontWeight: 700, color: "var(--accent)", background: "rgba(230,58,30,0.1)", border: "1px solid rgba(230,58,30,0.2)", borderRadius: "100px", padding: "0.15rem 0.5rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Admin Portal
+              </span>
+            </div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
               Admin Dashboard Overview
             </h1>
@@ -276,6 +163,7 @@ export default function AdminPage() {
             <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
               Logged in as <strong style={{ color: "var(--accent)" }}>{user.name}</strong>
             </div>
+
             <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "white" }}>AD</span>
             </div>
@@ -371,7 +259,7 @@ export default function AdminPage() {
                   Quick Access
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                  {navItems.slice(1).map(({ label, href, icon: Icon, color }) => (
+                  {adminNavItems.slice(1).map(({ label, href, icon: Icon, color }) => (
                     <Link
                       key={label}
                       href={href}
@@ -403,13 +291,12 @@ export default function AdminPage() {
             <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "1.25rem" }}>
               Module Activity (Last 24h)
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "1.25rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1.25rem" }}>
               {[
                 { name: "SENTINEL", icon: Shield, color: "#E63A1E", count: 47, label: "Scams Analysed", bar: 78 },
                 { name: "NETRA", icon: Eye, color: "#10B981", count: 23, label: "Notes Scanned", bar: 45 },
                 { name: "JAAL", icon: Network, color: "#818CF8", count: 8, label: "Networks Mapped", bar: 30 },
                 { name: "DRISHTI", icon: Map, color: "#F59E0B", count: 15, label: "Hotspots Detected", bar: 55 },
-                { name: "KAVACH", icon: MessageCircle, color: "#22D3EE", count: 312, label: "Citizens Assisted", bar: 92 },
               ].map(({ name, icon: Icon, color, count, label, bar }) => (
                 <div key={name} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>

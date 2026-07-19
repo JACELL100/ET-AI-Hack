@@ -28,13 +28,19 @@ logger = logging.getLogger("raksha.drishti")
 _supabase_client: Client | None = None
 _seeded = False
 
+# ── Table names in public schema ──────────────────────────────────────────────
+_TBL_INCIDENTS = "drishti_incidents"
+_TBL_REPORTS   = "drishti_citizen_reports"
+
+
 def _get_supabase() -> Client | None:
+    """Return a Supabase client and auto-seed the incidents table if empty."""
     global _supabase_client, _seeded
     if _supabase_client is None:
         if settings.supabase_url and settings.supabase_service_key:
             try:
                 _supabase_client = create_client(settings.supabase_url, settings.supabase_service_key)
-                logger.info("Supabase client initialized successfully for DRISHTI.")
+                logger.info("Supabase client initialized for DRISHTI (public schema).")
             except Exception as e:
                 logger.warning("Supabase init failed for DRISHTI: %s", e)
                 _supabase_client = None
@@ -42,14 +48,13 @@ def _get_supabase() -> Client | None:
     if _supabase_client and not _seeded:
         _seeded = True
         try:
-            # Check if incidents table is empty
-            res = _supabase_client.schema("drishti").table("incidents").select("id", count="exact").limit(1).execute()
+            res = _supabase_client.table(_TBL_INCIDENTS).select("id", count="exact").limit(1).execute()
             count = res.count if res.count is not None else len(res.data)
             if count == 0:
-                logger.info("drishti.incidents is empty. Seeding historical mock incidents...")
-                seed_data = []
+                logger.info("drishti_incidents table is empty — auto-seeding historical incidents...")
+                seed_rows = []
                 for inc in _INCIDENTS:
-                    seed_data.append({
+                    seed_rows.append({
                         "id": inc.id,
                         "lat": inc.lat,
                         "lng": inc.lng,
@@ -59,14 +64,15 @@ def _get_supabase() -> Client | None:
                         "district": inc.district,
                         "state": inc.state,
                         "description": inc.description,
-                        "source_module": inc.sourceModule
+                        "source_module": inc.sourceModule,
                     })
-                _supabase_client.schema("drishti").table("incidents").insert(seed_data).execute()
-                logger.info("Successfully seeded %d historical incidents.", len(seed_data))
+                _supabase_client.table(_TBL_INCIDENTS).insert(seed_rows).execute()
+                logger.info("Seeded %d historical incidents into Supabase.", len(seed_rows))
         except Exception as e:
-            logger.warning("Failed to auto-seed drishti.incidents: %s", e)
+            logger.warning("Failed to auto-seed drishti_incidents: %s", e)
 
     return _supabase_client
+
 
 # ── India bounding box for coordinate projection ──────────────────────────────
 # lat: 8.0°N – 37.0°N  |  lng: 67.0°E – 97.5°E
@@ -412,7 +418,7 @@ def get_heatmap() -> list[dict]:
     sb = _get_supabase()
     if sb:
         try:
-            res = sb.schema("drishti").table("incidents").select("lat", "lng", "type", "severity").execute()
+            res = sb.table(_TBL_INCIDENTS).select("lat,lng,type,severity").execute()
             return [
                 {"lat": r["lat"], "lng": r["lng"], "weight": 1.0, "type": r["type"], "severity": r["severity"]}
                 for r in res.data
@@ -433,49 +439,116 @@ def get_incidents(
     hours: int = 24,
 ) -> list[dict]:
     cutoff = datetime.utcnow() - timedelta(hours=hours)
-    
+    all_incidents: list[dict] = []
+
+    # 1. Include in-memory citizen reports
+    for r in _CITIZEN_REPORTS:
+        r_type = r.get("type", "scam")
+        if type_filter and type_filter != "all" and r_type != type_filter:
+            continue
+        sev = "critical" if r_type == "scam" else "high" if r_type in ("upi", "counterfeit") else "medium"
+        if severity and sev != severity:
+            continue
+        lat, lng = _resolve_coords(r.get("district", "India"), r.get("state", "India"), r.get("lat"), r.get("lng"))
+        all_incidents.append({
+            "id": r["id"],
+            "lat": lat,
+            "lng": lng,
+            "type": r_type,
+            "severity": sev,
+            "timestamp": r.get("timestamp", datetime.utcnow().isoformat()),
+            "district": r.get("district", "India"),
+            "state": r.get("state", "India"),
+            "description": f"Citizen Report: {r.get('description', '')}",
+            "sourceModule": "CITIZEN_PORTAL",
+            "isCitizenReport": True,
+        })
+
+    # 2. Fetch from Supabase DB (both drishti_citizen_reports and drishti_incidents)
     sb = _get_supabase()
     if sb:
         try:
-            cutoff_iso = cutoff.isoformat()
-            query = sb.schema("drishti").table("incidents").select("*").gte("timestamp", cutoff_iso)
-            if severity:
-                query = query.eq("severity", severity)
-            if type_filter and type_filter != "all":
-                query = query.eq("type", type_filter)
-            res = query.order("timestamp", desc=True).execute()
-            return [
-                {
+            # Query citizen reports from DB
+            rep_res = sb.table(_TBL_REPORTS).select("*").order("timestamp", desc=True).limit(50).execute()
+            for r in rep_res.data:
+                r_type = r.get("type", "scam")
+                if type_filter and type_filter != "all" and r_type != type_filter:
+                    continue
+                sev = "critical" if r_type == "scam" else "high" if r_type in ("upi", "counterfeit") else "medium"
+                if severity and sev != severity:
+                    continue
+                lat, lng = _resolve_coords(r["district"], r["state"], r.get("lat"), r.get("lng"))
+                all_incidents.append({
                     "id": r["id"],
-                    "lat": r["lat"],
-                    "lng": r["lng"],
-                    "type": r["type"],
-                    "severity": r["severity"],
-                    "timestamp": r["timestamp"],
+                    "lat": lat,
+                    "lng": lng,
+                    "type": r_type,
+                    "severity": sev,
+                    "timestamp": r.get("timestamp", datetime.utcnow().isoformat()),
+                    "district": r["district"],
+                    "state": r["state"],
+                    "description": f"Citizen Report: {r.get('description', '')}",
+                    "sourceModule": "CITIZEN_PORTAL",
+                    "isCitizenReport": True,
+                })
+        except Exception as e:
+            logger.warning("Failed to query citizen reports from DB in get_incidents: %s", e)
+
+        try:
+            # Query incidents from DB
+            inc_res = sb.table(_TBL_INCIDENTS).select("*").order("timestamp", desc=True).limit(50).execute()
+            for r in inc_res.data:
+                if severity and r.get("severity") != severity:
+                    continue
+                if type_filter and type_filter != "all" and r.get("type") != type_filter:
+                    continue
+                lat, lng = _resolve_coords(r["district"], r["state"], r.get("lat"), r.get("lng"))
+                all_incidents.append({
+                    "id": r["id"],
+                    "lat": lat,
+                    "lng": lng,
+                    "type": r.get("type", "scam"),
+                    "severity": r.get("severity", "medium"),
+                    "timestamp": r.get("timestamp", datetime.utcnow().isoformat()),
                     "district": r["district"],
                     "state": r["state"],
                     "description": r.get("description", ""),
-                    "sourceModule": r.get("source_module", "DRISHTI")
-                }
-                for r in res.data
-            ]
+                    "sourceModule": r.get("source_module", "DRISHTI"),
+                    "isCitizenReport": False,
+                })
         except Exception as e:
-            logger.warning("Failed to query incidents from Supabase: %s. Falling back to mock data.", e)
+            logger.warning("Failed to query incidents from DB in get_incidents: %s", e)
 
-    result = []
+    # 3. Add historical baseline incidents
     for inc in _INCIDENTS:
-        try:
-            ts = datetime.fromisoformat(inc.timestamp)
-        except ValueError:
-            ts = datetime.utcnow()
-        if ts < cutoff:
-            continue
         if severity and inc.severity != severity:
             continue
         if type_filter and type_filter != "all" and inc.type != type_filter:
             continue
-        result.append(inc.model_dump())
-    return result
+        lat, lng = _resolve_coords(inc.district, inc.state, inc.lat, inc.lng)
+        d = inc.model_dump()
+        d["lat"] = lat
+        d["lng"] = lng
+        d["isCitizenReport"] = False
+        all_incidents.append(d)
+
+    # Deduplicate by ID
+    seen = set()
+    deduped = []
+    for item in all_incidents:
+        if item["id"] not in seen:
+            seen.add(item["id"])
+            deduped.append(item)
+
+    # Sort by timestamp descending (newest reported issues first)
+    def parse_ts(ts_str: str) -> float:
+        try:
+            return datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return 0.0
+
+    deduped.sort(key=lambda x: parse_ts(x.get("timestamp", "")), reverse=True)
+    return deduped
 
 
 def get_predictions(timeframe: str = "24h") -> list[dict]:
@@ -526,9 +599,22 @@ _DISTRICT_COORDS: dict[str, tuple[float, float]] = {
     "Noida": (28.5355, 77.3910),
     "Gurugram": (28.4595, 77.0266),
     "Bangalore": (12.9716, 77.5946),
+    "Bangalore Central": (12.9716, 77.5946),
+    "Yelahanka": (13.0359, 77.5970),
+    "Koramangala": (12.9165, 77.6229),
+    "Whitefield": (12.9698, 77.7499),
     "Hyderabad": (17.3850, 78.4867),
+    "Hyderabad Central": (17.3850, 78.4867),
+    "Secunderabad": (17.4065, 78.4772),
+    "Kukatpally": (17.4900, 78.3900),
     "Chennai": (13.0827, 80.2707),
+    "Chennai Central": (13.0827, 80.2707),
+    "Egmore": (13.0827, 80.2707),
+    "T. Nagar": (13.0418, 80.2341),
+    "Adyar": (13.0012, 80.2565),
+    "Anna Nagar": (13.0878, 80.2170),
     "Kolkata": (22.5726, 88.3639),
+    "Kolkata Central": (22.5726, 88.3639),
     "Ahmedabad": (23.0225, 72.5714),
     "Jaipur": (26.9124, 75.7873),
     "Lucknow": (26.8467, 80.9462),
@@ -543,6 +629,68 @@ _DISTRICT_COORDS: dict[str, tuple[float, float]] = {
     "Visakhapatnam": (17.6868, 83.2185),
 }
 
+# State → (lat, lng) default centroid lookup
+_STATE_COORDS: dict[str, tuple[float, float]] = {
+    "Andhra Pradesh": (16.5062, 80.6480),
+    "Arunachal Pradesh": (27.0844, 93.6053),
+    "Assam": (26.1408, 91.7904),
+    "Bihar": (25.5941, 85.1376),
+    "Chhattisgarh": (21.2514, 81.6296),
+    "Goa": (15.2993, 74.1240),
+    "Gujarat": (23.0225, 72.5714),
+    "Haryana": (28.4595, 77.0266),
+    "Himachal Pradesh": (31.1048, 77.1734),
+    "Jharkhand": (23.3441, 85.3096),
+    "Karnataka": (12.9716, 77.5946),
+    "Kerala": (8.5241, 76.9366),
+    "Madhya Pradesh": (23.2599, 77.4126),
+    "Maharashtra": (19.0760, 72.8777),
+    "Manipur": (24.8170, 93.9368),
+    "Meghalaya": (25.5788, 91.8933),
+    "Mizoram": (23.7271, 92.7176),
+    "Nagaland": (25.6751, 94.1086),
+    "Odisha": (20.2961, 85.8245),
+    "Punjab": (30.9010, 75.8573),
+    "Rajasthan": (26.9124, 75.7873),
+    "Sikkim": (27.3389, 88.6065),
+    "Tamil Nadu": (13.0827, 80.2707),
+    "Telangana": (17.3850, 78.4867),
+    "Tripura": (23.8315, 91.2868),
+    "Uttar Pradesh": (26.8467, 80.9462),
+    "Uttarakhand": (30.3165, 78.0322),
+    "West Bengal": (22.5726, 88.3639),
+    "Delhi": (28.6139, 77.2090),
+    "Chandigarh": (30.7333, 76.7794),
+    "Jammu & Kashmir": (34.0837, 74.7973),
+    "Ladakh": (34.1526, 77.5771),
+}
+
+
+def _resolve_coords(district: str, state: str, raw_lat: float | None = None, raw_lng: float | None = None) -> tuple[float, float]:
+    """Accurately resolve (lat, lng) for a district and state, fixing fallback mismatches."""
+    # Check if raw_lat/raw_lng are valid non-centroid coordinates
+    if raw_lat and raw_lng and not (19.5 < raw_lat < 21.5 and 77.5 < raw_lng < 80.0 and "Maharashtra" not in state and "Nagpur" not in district):
+        return round(raw_lat, 4), round(raw_lng, 4)
+
+    # 1. Exact district match
+    if district in _DISTRICT_COORDS:
+        base_lat, base_lng = _DISTRICT_COORDS[district]
+        return round(base_lat + random.uniform(-0.02, 0.02), 4), round(base_lng + random.uniform(-0.02, 0.02), 4)
+
+    # 2. Substring district match
+    d_lower = district.lower()
+    for key, (base_lat, base_lng) in _DISTRICT_COORDS.items():
+        if key.lower() in d_lower or d_lower in key.lower():
+            return round(base_lat + random.uniform(-0.02, 0.02), 4), round(base_lng + random.uniform(-0.02, 0.02), 4)
+
+    # 3. State centroid match
+    if state in _STATE_COORDS:
+        base_lat, base_lng = _STATE_COORDS[state]
+        return round(base_lat + random.uniform(-0.04, 0.04), 4), round(base_lng + random.uniform(-0.04, 0.04), 4)
+
+    # 4. India centroid fallback
+    return 20.5937, 78.9629
+
 
 def submit_citizen_report(req: dict) -> dict:
     """Accept a citizen-submitted incident report and add to live feed."""
@@ -552,19 +700,8 @@ def submit_citizen_report(req: dict) -> dict:
     district = req.get("district", "Unknown")
     state = req.get("state", "India")
 
-    # Resolve coordinates
-    lat = req.get("lat")
-    lng = req.get("lng")
-    if not lat or not lng:
-        coords = _DISTRICT_COORDS.get(district)
-        if coords:
-            lat, lng = coords
-            # Small jitter so multiple reports from same district don't stack
-            lat += random.uniform(-0.04, 0.04)
-            lng += random.uniform(-0.04, 0.04)
-        else:
-            # India centroid fallback
-            lat, lng = 20.5937, 78.9629
+    # Resolve accurate coordinates
+    lat, lng = _resolve_coords(district, state, req.get("lat"), req.get("lng"))
 
     report_id = f"CR-{uuid.uuid4().hex[:8].upper()}"
     report_type = req.get("type", "scam")
@@ -591,8 +728,8 @@ def submit_citizen_report(req: dict) -> dict:
     sb = _get_supabase()
     if sb:
         try:
-            # 1. Insert into citizen_reports
-            sb.schema("drishti").table("citizen_reports").insert({
+            # 1. Insert into drishti_citizen_reports (public schema)
+            sb.table(_TBL_REPORTS).insert({
                 "id": report_id,
                 "type": report_type,
                 "description": description,
@@ -616,7 +753,7 @@ def submit_citizen_report(req: dict) -> dict:
             severity = severity_map.get(report_type, "medium")
 
             incident_id = f"I-CR-{uuid.uuid4().hex[:6].upper()}"
-            sb.schema("drishti").table("incidents").insert({
+            sb.table(_TBL_INCIDENTS).insert({
                 "id": incident_id,
                 "lat": round(lat, 4),
                 "lng": round(lng, 4),
@@ -629,7 +766,7 @@ def submit_citizen_report(req: dict) -> dict:
                 "source_module": "DRISHTI"
             }).execute()
 
-            logger.info("Successfully persisted citizen report and mapped incident in Supabase.")
+            logger.info("Persisted citizen report + incident in Supabase public schema.")
         except Exception as e:
             logger.warning("Failed to save report to Supabase: %s. Storing in-memory fallback.", e)
             _CITIZEN_REPORTS.insert(0, report_data)
@@ -686,27 +823,37 @@ def submit_citizen_report(req: dict) -> dict:
 
 
 def get_citizen_reports(limit: int = 50) -> list[dict]:
+    reports = list(_CITIZEN_REPORTS)
     sb = _get_supabase()
     if sb:
         try:
-            res = sb.schema("drishti").table("citizen_reports").select("*").order("timestamp", desc=True).limit(limit).execute()
-            return [
-                {
+            res = sb.table(_TBL_REPORTS).select("*").order("timestamp", desc=True).limit(limit).execute()
+            for r in res.data:
+                lat, lng = _resolve_coords(r["district"], r["state"], r.get("lat"), r.get("lng"))
+                reports.insert(0, {
                     "id": r["id"],
                     "type": r["type"],
                     "description": r["description"],
                     "district": r["district"],
                     "state": r["state"],
-                    "lat": r["lat"],
-                    "lng": r["lng"],
+                    "lat": lat,
+                    "lng": lng,
                     "phone": r.get("phone"),
                     "reporterName": r.get("reporter_name"),
                     "timestamp": r["timestamp"],
                     "status": r["status"]
-                }
-                for r in res.data
-            ]
+                })
         except Exception as e:
             logger.warning("Failed to query citizen reports from Supabase: %s", e)
 
-    return _CITIZEN_REPORTS[:limit]
+    seen = set()
+    deduped = []
+    for r in reports:
+        if r["id"] not in seen:
+            seen.add(r["id"])
+            lat, lng = _resolve_coords(r["district"], r["state"], r.get("lat"), r.get("lng"))
+            r["lat"] = lat
+            r["lng"] = lng
+            deduped.append(r)
+
+    return deduped[:limit]

@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useAuth } from "@/components/providers/AuthContext";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { CitizenSidebar } from "@/components/layout/CitizenSidebar";
 import {
   scanCurrency,
   getNetraStats,
@@ -42,184 +44,7 @@ import type { NetraScanResultExtended, NetraScanHistory } from "@/types";
 // ─────────────────────────────────────────────────────────────────────────────
 // Nav
 // ─────────────────────────────────────────────────────────────────────────────
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "SENTINEL", href: "/sentinel", icon: Shield, color: "#E63A1E" },
-  { label: "NETRA", href: "/netra", icon: Eye, color: "#10B981" },
-  { label: "JAAL", href: "/jaal", icon: Network, color: "#818CF8" },
-  { label: "DRISHTI", href: "/drishti", icon: Map, color: "#F59E0B" },
-  { label: "KAVACH", href: "/kavach", icon: MessageCircle, color: "#22D3EE" },
-  { label: "Settings", href: "/settings", icon: Settings },
-];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sidebar
-// ─────────────────────────────────────────────────────────────────────────────
-function Sidebar() {
-  const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
-  return (
-    <aside
-      style={{
-        width: "240px",
-        flexShrink: 0,
-        backgroundColor: "var(--bg-secondary)",
-        borderRight: "1px solid var(--bg-border)",
-        display: "flex",
-        flexDirection: "column",
-        padding: "1.5rem 1rem",
-        position: "fixed",
-        top: 0,
-        bottom: 0,
-        left: 0,
-        zIndex: 50,
-        overflowY: "auto",
-      }}
-    >
-      <Link
-        href="/"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          textDecoration: "none",
-          marginBottom: "2rem",
-          padding: "0 0.5rem",
-        }}
-      >
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            background: "var(--accent)",
-            borderRadius: "6px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Shield size={17} color="white" strokeWidth={2.5} />
-        </div>
-        <span
-          style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 800,
-            fontSize: "1rem",
-            color: "var(--text-primary)",
-          }}
-        >
-          RAKSHA<span style={{ color: "var(--accent)" }}>·AI</span>
-        </span>
-      </Link>
-      <nav
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.25rem",
-        }}
-      >
-        {navItems.map(({ label, href, icon: Icon, color }) => {
-          const isActive = pathname === href;
-          return (
-            <Link
-              key={label}
-              href={href}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.625rem",
-                padding: "0.625rem 0.875rem",
-                borderRadius: "var(--radius-md)",
-                textDecoration: "none",
-                fontSize: "0.8125rem",
-                fontWeight: isActive ? 600 : 500,
-                color: isActive
-                  ? "var(--text-primary)"
-                  : "var(--text-secondary)",
-                backgroundColor: isActive
-                  ? "var(--bg-tertiary)"
-                  : "transparent",
-                borderLeft: isActive
-                  ? "2px solid var(--accent)"
-                  : "2px solid transparent",
-                transition: "all 150ms ease",
-              }}
-            >
-              <Icon
-                size={17}
-                color={isActive ? "var(--accent)" : color || "currentColor"}
-                strokeWidth={2}
-              />
-              <span>{label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-      <div
-        style={{
-          marginTop: "auto",
-          paddingTop: "1rem",
-          borderTop: "1px solid var(--bg-border)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.75rem",
-        }}
-      >
-        {user && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", padding: "0 0.5rem" }}>
-            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Account</span>
-            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={user.name}>{user.name}</span>
-          </div>
-        )}
-        <button
-          onClick={toggleTheme}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.625rem",
-            width: "100%",
-            padding: "0.625rem 0.875rem",
-            background: "none",
-            border: "1px solid var(--bg-border)",
-            borderRadius: "var(--radius-md)",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            fontSize: "0.8125rem",
-            fontFamily: "var(--font-body)",
-          }}
-        >
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          {theme === "dark" ? "Light Mode" : "Dark Mode"}
-        </button>
-        {user && (
-          <button
-            onClick={logout}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.625rem",
-              width: "100%",
-              padding: "0.625rem 0.875rem",
-              background: "rgba(230,58,30,0.1)",
-              border: "1px solid rgba(230,58,30,0.2)",
-              borderRadius: "var(--radius-md)",
-              cursor: "pointer",
-              color: "var(--accent)",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            <LogOut size={14} />
-            Sign Out
-          </button>
-        )}
-      </div>
-    </aside>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -283,7 +108,7 @@ export default function NetraPage() {
     if (!loading) {
       if (!user) {
         window.location.href = "/login";
-      } else if (!user.isCitizen) {
+      } else if (user.activeRole === "citizen" && !user.isCitizen) {
         registerCitizen();
       }
     }
@@ -303,10 +128,10 @@ export default function NetraPage() {
       .catch(() => {});
   }, []);
 
-  if (loading || !user || !user.isCitizen) {
+  if (loading || !user) {
     return (
       <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
-        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying Citizen access...</div>
+        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying NETRA access...</div>
       </div>
     );
   }
@@ -416,7 +241,7 @@ export default function NetraPage() {
         backgroundColor: "var(--bg-primary)",
       }}
     >
-      <Sidebar />
+      <CitizenSidebar />
 
       <main
         style={{

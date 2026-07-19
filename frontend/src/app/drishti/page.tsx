@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useAuth } from "@/components/providers/AuthContext";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 // Leaflet must be loaded client-side only (no SSR)
 const LeafletMap = dynamic(() => import("@/components/ui/DrishtiLeafletMap"), { ssr: false, loading: () => (
@@ -81,61 +82,7 @@ const RISK_COLOR = (s: number) =>
   s >= 0.7 ? "#E63A1E" : s >= 0.5 ? "#F59E0B" : "#10B981";
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-const NAV_ITEMS = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "SENTINEL", href: "/sentinel", icon: Shield, color: "#E63A1E" },
-  { label: "NETRA", href: "/netra", icon: Eye, color: "#10B981" },
-  { label: "JAAL", href: "/jaal", icon: Network, color: "#818CF8" },
-  { label: "DRISHTI", href: "/drishti", icon: Map, color: "#F59E0B" },
-  { label: "KAVACH", href: "/kavach", icon: MessageCircle, color: "#22D3EE" },
-  { label: "Settings", href: "/settings", icon: Settings },
-];
 
-function Sidebar() {
-  const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
-  return (
-    <aside style={{ width: 240, flexShrink: 0, background: "var(--bg-secondary)", borderRight: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", padding: "1.5rem 1rem", position: "fixed", inset: "0 auto 0 0", zIndex: 50, overflowY: "auto" }}>
-      <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", marginBottom: "2rem", padding: "0 0.5rem" }}>
-        <div style={{ width: 32, height: 32, background: "var(--accent)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Shield size={17} color="white" strokeWidth={2.5} />
-        </div>
-        <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", color: "var(--text-primary)" }}>
-          RAKSHA<span style={{ color: "var(--accent)" }}>·AI</span>
-        </span>
-      </Link>
-      <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-        {NAV_ITEMS.map(({ label, href, icon: Icon, color }) => {
-          const active = pathname === href;
-          return (
-            <Link key={label} href={href} style={{ display: "flex", alignItems: "center", gap: "0.625rem", padding: "0.625rem 0.875rem", borderRadius: "var(--radius-md)", textDecoration: "none", fontSize: "0.8125rem", fontWeight: active ? 600 : 500, color: active ? "var(--text-primary)" : "var(--text-secondary)", background: active ? "var(--bg-tertiary)" : "transparent", borderLeft: `2px solid ${active ? "var(--accent)" : "transparent"}`, transition: "all 150ms ease" }}>
-              <Icon size={17} color={active ? "var(--accent)" : (color ?? "currentColor")} strokeWidth={2} />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-      <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {user && (
-          <div style={{ padding: "0 0.5rem" }}>
-            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Account</span>
-            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={user.name}>{user.name}</div>
-          </div>
-        )}
-        <button onClick={toggleTheme} style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.875rem", background: "none", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", cursor: "pointer", color: "var(--text-secondary)", fontSize: "0.8125rem", fontFamily: "var(--font-body)" }}>
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          {theme === "dark" ? "Light Mode" : "Dark Mode"}
-        </button>
-        {user && (
-          <button onClick={logout} style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.875rem", background: "rgba(230,58,30,0.1)", border: "1px solid rgba(230,58,30,0.2)", borderRadius: "var(--radius-md)", cursor: "pointer", color: "var(--accent)", fontSize: "0.8125rem", fontWeight: 600, fontFamily: "var(--font-body)" }}>
-            <LogOut size={14} /> Sign Out
-          </button>
-        )}
-      </div>
-    </aside>
-  );
-}
 
 
 // ── KPI Card ─────────────────────────────────────────────────────────────────
@@ -391,11 +338,12 @@ export default function DrishtiPage() {
   const [patrolRoutes, setPatrolRoutes] = useState<PatrolRoute[]>([]);
   const [districts, setDistricts] = useState<DistrictStat[]>([]);
 
-  const [activeLayers, setActiveLayers] = useState(["Heatmap", "Hotspots", "Incidents"]);
+  const [activeLayers, setActiveLayers] = useState(["Heatmap", "Hotspots", "Incidents", "Reports"]);
   const [typeFilter, setTypeFilter] = useState("all");
   const [predTimeframe, setPredTimeframe] = useState("24h");
   const [rightTab, setRightTab] = useState<"feed" | "predictions" | "patrol" | "reports">("feed");
   const [selectedHotspot, setSelectedHotspot] = useState<HotspotDetailed | null>(null);
+  const [focusedCoords, setFocusedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [sortCol, setSortCol] = useState<keyof DistrictStat>("riskRank");
   const [sortAsc, setSortAsc] = useState(true);
   const [liveCount, setLiveCount] = useState(0);
@@ -423,6 +371,36 @@ export default function DrishtiPage() {
     } catch { /* ignore */ }
   }, [typeFilter]);
 
+const STATE_FALLBACKS: Record<string, [number, number]> = {
+  "Tamil Nadu": [13.0827, 80.2707],
+  "Maharashtra": [19.0760, 72.8777],
+  "Delhi": [28.6139, 77.2090],
+  "Karnataka": [12.9716, 77.5946],
+  "Telangana": [17.3850, 78.4867],
+  "Uttar Pradesh": [26.8467, 80.9462],
+  "Haryana": [28.4595, 77.0266],
+  "West Bengal": [22.5726, 88.3639],
+  "Gujarat": [23.0225, 72.5714],
+  "Rajasthan": [26.9124, 75.7873],
+  "Kerala": [8.5241, 76.9366],
+  "Andhra Pradesh": [16.5062, 80.6480],
+  "Punjab": [30.9010, 75.8573],
+  "Madhya Pradesh": [23.2599, 77.4126],
+  "Bihar": [25.5941, 85.1376],
+};
+
+function resolveCoords(district: string, state: string, lat?: number, lng?: number): { lat: number; lng: number } {
+  const isCentralFallback = typeof lat === "number" && typeof lng === "number" && Math.abs(lat - 20.5937) < 1.0 && Math.abs(lng - 78.9629) < 1.5 && !state?.includes("Maharashtra") && !district?.includes("Nagpur");
+  if (typeof lat === "number" && typeof lng === "number" && !isCentralFallback) {
+    return { lat, lng };
+  }
+  if (state && STATE_FALLBACKS[state]) {
+    const [sLat, sLng] = STATE_FALLBACKS[state];
+    return { lat: sLat, lng: sLng };
+  }
+  return { lat: lat ?? 20.5937, lng: lng ?? 78.9629 };
+}
+
   const fetchIncidents = useCallback(async () => {
     try {
       const url = typeFilter !== "all"
@@ -430,7 +408,14 @@ export default function DrishtiPage() {
         : `${API}/api/v1/drishti/incidents?hours=24`;
       const r = await fetch(url);
       const j = await r.json();
-      if (j.success) { setIncidents(j.data); setLiveCount(j.data.length); }
+      if (j.success) {
+        const cleaned = (j.data as Incident[]).map(inc => {
+          const c = resolveCoords(inc.district, inc.state, inc.lat, inc.lng);
+          return { ...inc, lat: c.lat, lng: c.lng };
+        });
+        setIncidents(cleaned);
+        setLiveCount(cleaned.length);
+      }
     } catch { /* ignore */ }
   }, [typeFilter]);
 
@@ -462,25 +447,54 @@ export default function DrishtiPage() {
     try {
       const r = await fetch(`${API}/api/v1/drishti/citizen-reports`);
       const j = await r.json();
-      if (j.success) setCitizenReports(j.data);
+      if (j.success) {
+        const cleaned = (j.data as CitizenReport[]).map(cr => {
+          const c = resolveCoords(cr.district, cr.state, cr.lat, cr.lng);
+          return { ...cr, lat: c.lat, lng: c.lng };
+        });
+        setCitizenReports(cleaned);
+      }
     } catch { /* ignore */ }
   }, []);
 
   // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!loading && (!user || !user.isAdmin)) {
-      window.location.href = "/admin";
+    if (!loading) {
+      if (!user) {
+        // Not logged in at all — go to admin login
+        window.location.href = "/admin";
+      } else if (!user.isAdmin) {
+        // Logged in as citizen but not admin — send back to citizen portal
+        window.location.href = "/dashboard";
+      }
     }
   }, [user, loading]);
 
+  // Initial data load
   useEffect(() => {
-    fetchStats(); fetchHotspots(); fetchIncidents();
-    fetchPredictions(); fetchPatrol(); fetchDistricts(); fetchCitizenReports();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    fetchStats();
+    fetchHotspots();
+    fetchIncidents();
+    fetchPredictions();
+    fetchPatrol();
+    fetchDistricts();
+    fetchCitizenReports();
+  }, []); // Run once on mount
 
-  useEffect(() => { fetchHotspots(); fetchIncidents(); }, [fetchHotspots, fetchIncidents]);
-  useEffect(() => { fetchPredictions(); }, [fetchPredictions]);
+  // Refetch when filters change (skip initial mount to avoid duplicate calls)
+  const isMountedRef = useRef(false);
+  useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      return;
+    }
+    fetchHotspots();
+    fetchIncidents();
+  }, [typeFilter]);
+
+  useEffect(() => {
+    fetchPredictions();
+  }, [predTimeframe]);
 
   // Live polling
   useEffect(() => {
@@ -516,10 +530,30 @@ export default function DrishtiPage() {
   };
 
   const handleNewReport = (report: CitizenReport) => {
-    setCitizenReports(prev => [report, ...prev]);
+    const coords = resolveCoords(report.district, report.state, report.lat, report.lng);
+    const cleanedReport = { ...report, lat: coords.lat, lng: coords.lng };
+    setCitizenReports(prev => [cleanedReport, ...prev]);
+    
+    // Prepend directly to incidents so it instantly shows at top of LIVE INCIDENTS feed
+    const newInc: Incident = {
+      id: report.id,
+      lat: coords.lat,
+      lng: coords.lng,
+      type: report.type,
+      severity: report.type === "scam" ? "critical" : (report.type === "upi" || report.type === "counterfeit") ? "high" : "medium",
+      timestamp: report.timestamp || new Date().toISOString(),
+      district: report.district,
+      state: report.state,
+      description: `Citizen Report: ${report.description}`,
+      sourceModule: "CITIZEN_PORTAL",
+    };
+    setIncidents(prev => [newInc, ...prev.filter(i => i.id !== report.id)]);
+
     setLiveCount(c => c + 1);
     if (stats) setStats(s => s ? { ...s, totalToday: s.totalToday + 1 } : s);
-    setRightTab("reports");
+    setActiveLayers(prev => prev.includes("Reports") ? prev : [...prev, "Reports"]);
+    setRightTab("feed");
+    setFocusedCoords({ lat: coords.lat, lng: coords.lng });
   };
 
   const LAYERS = ["Heatmap", "Hotspots", "Predictions", "Patrol", "Incidents", "Reports"];
@@ -536,7 +570,7 @@ export default function DrishtiPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg-primary)" }}>
-      <Sidebar />
+      <AdminSidebar />
       {showReportModal && (
         <CitizenReportModal
           onClose={() => setShowReportModal(false)}
@@ -627,6 +661,7 @@ export default function DrishtiPage() {
               citizenReports={activeLayers.includes("Reports") ? citizenReports : []}
               showHeatmap={activeLayers.includes("Heatmap")}
               onHotspotClick={(h) => setSelectedHotspot(selectedHotspot?.id === h.id ? null : h)}
+              focusedCoords={focusedCoords}
             />
 
             {/* Hotspot drawer overlaying map */}
@@ -662,7 +697,20 @@ export default function DrishtiPage() {
                   <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.8rem" }}>Loading incidents…</div>
                 ) : (
                   incidents.map((inc, i) => (
-                    <div key={inc.id} style={{ padding: "0.625rem 0.875rem", borderBottom: "1px solid var(--bg-border)", borderLeft: `3px solid ${SEV_COLOR[inc.severity] ?? "#888"}`, background: i === 0 ? `${SEV_COLOR[inc.severity] ?? "#888"}08` : undefined }}>
+                    <div
+                      key={inc.id}
+                      onClick={() => setFocusedCoords({ lat: inc.lat, lng: inc.lng })}
+                      style={{
+                        padding: "0.625rem 0.875rem",
+                        borderBottom: "1px solid var(--bg-border)",
+                        borderLeft: `3px solid ${SEV_COLOR[inc.severity] ?? "#888"}`,
+                        background: i === 0 ? `${SEV_COLOR[inc.severity] ?? "#888"}08` : undefined,
+                        cursor: "pointer",
+                        transition: "background 150ms ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tertiary)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = i === 0 ? `${SEV_COLOR[inc.severity] ?? "#888"}08` : "transparent")}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.375rem" }}>
                         <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.3, margin: 0 }}>{inc.description || inc.type}</p>
                         <span style={{ fontSize: "0.58rem", color: "var(--text-muted)", flexShrink: 0 }}>{fmtTime(inc.timestamp)}</span>
@@ -670,6 +718,11 @@ export default function DrishtiPage() {
                       <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.25rem", flexWrap: "wrap" }}>
                         <MapPin size={9} color="var(--text-muted)" />
                         <span style={{ fontSize: "0.67rem", color: "var(--text-muted)" }}>{inc.district}, {inc.state}</span>
+                        {inc.sourceModule === "CITIZEN_PORTAL" && (
+                          <span style={{ fontSize: "0.55rem", fontWeight: 700, textTransform: "uppercase", padding: "0.1rem 0.35rem", borderRadius: 100, background: "rgba(129,140,248,0.2)", color: "#818CF8", border: "1px solid rgba(129,140,248,0.3)" }}>
+                            Citizen Report
+                          </span>
+                        )}
                         <span style={{ marginLeft: "auto", fontSize: "0.57rem", fontWeight: 700, textTransform: "uppercase", padding: "0.1rem 0.35rem", borderRadius: 100, background: `${SEV_COLOR[inc.severity] ?? "#888"}20`, color: SEV_COLOR[inc.severity] ?? "#888" }}>{inc.severity}</span>
                       </div>
                     </div>
@@ -764,7 +817,20 @@ export default function DrishtiPage() {
                 ) : (
                   <div style={{ flex: 1, overflowY: "auto" }}>
                     {citizenReports.map((cr, i) => (
-                      <div key={cr.id} style={{ padding: "0.625rem 0.875rem", borderBottom: "1px solid var(--bg-border)", borderLeft: `3px solid ${TYPE_COLOR[cr.type] ?? "#818CF8"}`, background: i === 0 ? `${TYPE_COLOR[cr.type] ?? "#818CF8"}08` : undefined }}>
+                      <div
+                        key={cr.id}
+                        onClick={() => setFocusedCoords({ lat: cr.lat, lng: cr.lng })}
+                        style={{
+                          padding: "0.625rem 0.875rem",
+                          borderBottom: "1px solid var(--bg-border)",
+                          borderLeft: `3px solid ${TYPE_COLOR[cr.type] ?? "#818CF8"}`,
+                          background: i === 0 ? `${TYPE_COLOR[cr.type] ?? "#818CF8"}08` : undefined,
+                          cursor: "pointer",
+                          transition: "background 150ms ease",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-tertiary)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = i === 0 ? `${TYPE_COLOR[cr.type] ?? "#818CF8"}08` : "transparent")}
+                      >
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.375rem", marginBottom: "0.25rem" }}>
                           <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase", color: TYPE_COLOR[cr.type] ?? "#818CF8", background: `${TYPE_COLOR[cr.type] ?? "#818CF8"}18`, padding: "0.1rem 0.35rem", borderRadius: 100 }}>{cr.type}</span>
                           <span style={{ fontSize: "0.58rem", color: "var(--text-muted)", flexShrink: 0 }}>{fmtTime(cr.timestamp)}</span>

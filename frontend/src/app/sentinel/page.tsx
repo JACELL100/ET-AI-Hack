@@ -13,6 +13,8 @@ import { TranscriptPanel } from "@/components/sentinel/TranscriptPanel";
 import { useSentinelStream } from "@/hooks/useSentinelStream";
 import type { SessionCompleteData, VoiceAnalysisData } from "@/hooks/useSentinelStream";
 import { analyseText as apiAnalyseText, analyseAudio as apiAnalyseAudio } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthContext";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
 
 /* ── Scenarios (fetched from API or fallback) ───────────────────────── */
 const FALLBACK_SCENARIOS = [
@@ -41,11 +43,24 @@ const sectionLabel: React.CSSProperties = {
 };
 
 export default function SentinelPage() {
+  const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("simulate");
   const [sessionResult, setSessionResult] = useState<SessionCompleteData | null>(null);
   const [voiceAnalysis, setVoiceAnalysis] = useState<VoiceAnalysisData | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [showAlertPanel, setShowAlertPanel] = useState(false);
+
+  // Admin-only page — redirect non-admin users appropriately
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        window.location.href = "/admin";
+      } else if (!user.isAdmin) {
+        // Citizen user — send them back to citizen portal
+        window.location.href = "/dashboard";
+      }
+    }
+  }, [user, loading]);
 
   /* ── Upload state ────────────────────────────────────────────────── */
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -107,10 +122,21 @@ export default function SentinelPage() {
   const activeVerdict = stream.verdict || sidebarResult?.verdict || "SAFE";
   const activeIntents = stream.intents.length > 0 ? stream.intents : sidebarResult?.intents_detected || [];
 
+  // Show loading while verifying credentials
+  if (loading || !user || !user.isAdmin) {
+    return (
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
+        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying Admin credentials...</div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
-      {/* ── Page Header ─────────────────────────────────────────────── */}
-      <div style={{ padding: "1.5rem 2rem 0", maxWidth: "1400px", margin: "0 auto" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
+      <AdminSidebar />
+      <div style={{ marginLeft: "240px", flex: 1, minWidth: 0 }}>
+        {/* ── Page Header ─────────────────────────────────────────────── */}
+        <div style={{ padding: "1.5rem 2rem 0", maxWidth: "1400px", margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.25rem" }}>
           <div style={{
             width: "36px", height: "36px", borderRadius: "10px",
@@ -494,6 +520,7 @@ export default function SentinelPage() {
           .hide-mobile { display: none; }
         }
       `}</style>
+      </div>
     </div>
   );
 }

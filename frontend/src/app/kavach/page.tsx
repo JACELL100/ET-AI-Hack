@@ -4,85 +4,12 @@ import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Shield, Eye, Network, Map, MessageCircle, LayoutDashboard,
-  Settings, Sun, Moon, Send, Phone, Hash, LogOut
+  Shield, Eye, MessageCircle, LayoutDashboard,
+  Sun, Moon, Send, Phone, Hash, LogOut, QrCode, Smartphone
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useAuth } from "@/components/providers/AuthContext";
-
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "SENTINEL", href: "/sentinel", icon: Shield, color: "#E63A1E" },
-  { label: "NETRA", href: "/netra", icon: Eye, color: "#10B981" },
-  { label: "JAAL", href: "/jaal", icon: Network, color: "#818CF8" },
-  { label: "DRISHTI", href: "/drishti", icon: Map, color: "#F59E0B" },
-  { label: "KAVACH", href: "/kavach", icon: MessageCircle, color: "#22D3EE" },
-  { label: "Settings", href: "/settings", icon: Settings },
-];
-
-function Sidebar() {
-  const pathname = usePathname();
-  const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
-  return (
-    <aside style={{ width: "240px", flexShrink: 0, backgroundColor: "var(--bg-secondary)", borderRight: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", padding: "1.5rem 1rem", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 50, overflowY: "auto" }}>
-      <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", marginBottom: "2rem", padding: "0 0.5rem" }}>
-        <div style={{ width: "32px", height: "32px", background: "var(--accent)", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Shield size={17} color="white" strokeWidth={2.5} />
-        </div>
-        <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", color: "var(--text-primary)" }}>
-          RAKSHA<span style={{ color: "var(--accent)" }}>·AI</span>
-        </span>
-      </Link>
-      <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-        {navItems.map(({ label, href, icon: Icon, color }) => {
-          const isActive = pathname === href;
-          return (
-            <Link key={label} href={href} style={{ display: "flex", alignItems: "center", gap: "0.625rem", padding: "0.625rem 0.875rem", borderRadius: "var(--radius-md)", textDecoration: "none", fontSize: "0.8125rem", fontWeight: isActive ? 600 : 500, color: isActive ? "var(--text-primary)" : "var(--text-secondary)", backgroundColor: isActive ? "var(--bg-tertiary)" : "transparent", borderLeft: isActive ? "2px solid var(--accent)" : "2px solid transparent", transition: "all 150ms ease" }}>
-              <Icon size={17} color={isActive ? "var(--accent)" : (color || "currentColor")} strokeWidth={2} />
-              <span>{label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-      <div style={{ marginTop: "auto", paddingTop: "1rem", borderTop: "1px solid var(--bg-border)", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {user && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", padding: "0 0.5rem" }}>
-            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Account</span>
-            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={user.name}>{user.name}</span>
-          </div>
-        )}
-        <button onClick={toggleTheme} style={{ display: "flex", alignItems: "center", gap: "0.625rem", width: "100%", padding: "0.625rem 0.875rem", background: "none", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", cursor: "pointer", color: "var(--text-secondary)", fontSize: "0.8125rem", fontFamily: "var(--font-body)" }}>
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          {theme === "dark" ? "Light Mode" : "Dark Mode"}
-        </button>
-        {user && (
-          <button
-            onClick={logout}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.625rem",
-              width: "100%",
-              padding: "0.625rem 0.875rem",
-              background: "rgba(230,58,30,0.1)",
-              border: "1px solid rgba(230,58,30,0.2)",
-              borderRadius: "var(--radius-md)",
-              cursor: "pointer",
-              color: "var(--accent)",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              fontFamily: "var(--font-body)",
-            }}
-          >
-            <LogOut size={14} />
-            Sign Out
-          </button>
-        )}
-      </div>
-    </aside>
-  );
-}
+import { CitizenSidebar } from "@/components/layout/CitizenSidebar";
 
 type ChatMsg = { id: string; role: "user" | "bot"; text: string; time: string };
 
@@ -169,7 +96,7 @@ export default function KavachPage() {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", backgroundColor: "var(--bg-primary)" }}>
-      <Sidebar />
+      <CitizenSidebar />
       <main style={{ marginLeft: "240px", flex: 1, padding: "2rem", display: "flex", flexDirection: "column", overflowY: "auto" }}>
         {/* Header */}
         <div style={{ marginBottom: "1.5rem" }}>
@@ -182,13 +109,18 @@ export default function KavachPage() {
               <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Protection at Your Fingertips</p>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "1rem" }}>
+          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
             {[{ label: "Citizens Helped", value: "12,847", color: "#22D3EE" }, { label: "Scams Blocked", value: "3,241", color: "#10B981" }, { label: "Response Time", value: "< 2s" }].map(s => (
               <div key={s.label} style={{ padding: "0.75rem 1.25rem", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-lg)" }}>
                 <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</p>
                 <p style={{ fontSize: "1.25rem", fontWeight: 800, color: s.color ?? "var(--text-primary)", fontFamily: "var(--font-display)" }}>{s.value}</p>
               </div>
             ))}
+
+            <Link href="/kavach/whatsapp-scan" style={{ padding: "0.75rem 1.25rem", background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.3)", borderRadius: "var(--radius-lg)", color: "#25D366", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.625rem", fontWeight: 700, fontSize: "0.8125rem", marginLeft: "auto" }}>
+              <QrCode size={18} color="#25D366" />
+              <span>Scan WhatsApp Web (QR Code) →</span>
+            </Link>
           </div>
         </div>
 
@@ -196,7 +128,7 @@ export default function KavachPage() {
         <div style={{ display: "flex", gap: "0", marginBottom: "1.5rem", borderBottom: "1px solid var(--bg-border)" }}>
           {(["webchat", "whatsapp", "ivr"] as Tab[]).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: "0.75rem 1.5rem", background: "none", border: "none", borderBottom: `2px solid ${activeTab === tab ? "#22D3EE" : "transparent"}`, color: activeTab === tab ? "#22D3EE" : "var(--text-muted)", fontSize: "0.8125rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", transition: "all 150ms ease", marginBottom: "-1px" }}>
-              {tab === "webchat" ? "Web Chat" : tab === "whatsapp" ? "WhatsApp Sim" : "IVR Sim"}
+              {tab === "webchat" ? "Web Chat" : tab === "whatsapp" ? "WhatsApp Sim & QR Scanner" : "IVR Sim"}
             </button>
           ))}
         </div>
@@ -257,7 +189,22 @@ export default function KavachPage() {
 
         {/* WhatsApp Sim */}
         {activeTab === "whatsapp" && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--bg-border)", maxHeight: "620px", maxWidth: "480px" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            <div style={{ padding: "1rem 1.25rem", borderRadius: "var(--radius-lg)", background: "rgba(37,211,102,0.08)", border: "1px solid rgba(37,211,102,0.2)", display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: "600px" }}>
+              <div>
+                <p style={{ fontSize: "0.9375rem", fontWeight: 700, color: "#25D366", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Smartphone size={18} /> Connect Real WhatsApp Web (QR Scanner)
+                </p>
+                <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: "0.25rem 0 0" }}>
+                  Scan your WhatsApp Web QR code to automatically check live chats for cyber fraud & AI scam links.
+                </p>
+              </div>
+              <Link href="/kavach/whatsapp-scan" style={{ padding: "0.5rem 1rem", borderRadius: "var(--radius-md)", background: "#25D366", color: "white", fontSize: "0.8125rem", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.5rem", flexShrink: 0, marginLeft: "1rem" }}>
+                <QrCode size={16} /> Open Scanner →
+              </Link>
+            </div>
+
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--bg-border)", maxHeight: "540px", maxWidth: "480px" }}>
             {/* WA Header */}
             <div style={{ padding: "0.75rem 1rem", background: "#075E54", display: "flex", alignItems: "center", gap: "0.75rem" }}>
               <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#128C7E", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -288,7 +235,8 @@ export default function KavachPage() {
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* IVR Sim */}
         {activeTab === "ivr" && (

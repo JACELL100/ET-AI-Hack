@@ -1434,9 +1434,10 @@ def _build_result_dict(
 
 
 def _persist_scan(scan_id: str, result: dict) -> None:
-    _scan_store[scan_id]    = result
+    _scan_store[scan_id] = result
     _scan_timestamps[scan_id] = datetime.now(timezone.utc).isoformat()
-    _scan_order.append(scan_id)
+    if scan_id not in _scan_order:
+        _scan_order.append(scan_id)
     verdict = result.get("verdict", "SUSPICIOUS")
     _global_stats["total_scans"] += 1
     if verdict == "COUNTERFEIT": _global_stats["counterfeits"] += 1
@@ -1446,18 +1447,40 @@ def _persist_scan(scan_id: str, result: dict) -> None:
     sb = _get_supabase()
     if sb is None:
         return
+
+    payload = {
+        "id": scan_id,
+        "denomination": result.get("denomination"),
+        "verdict": result["verdict"],
+        "confidence": result["confidence"],
+        "overall_score": result["overall_score"],
+        "serial_number": (result.get("serial_number") or {}).get("extracted"),
+        "pipeline_version": result.get("pipeline_version", PIPELINE_VERSION),
+        "processing_time_ms": result.get("processing_time_ms"),
+        "details": result,
+    }
+
+    # 1. Try public.netra_scans table first (standard PostgREST public schema)
+    saved = False
     try:
-        sb.schema("netra").table("scans").upsert({
-            "id": scan_id,
-            "denomination": result.get("denomination"),
-            "verdict": result["verdict"], "confidence": result["confidence"],
-            "overall_score": result["overall_score"],
-            "serial_number": (result.get("serial_number") or {}).get("extracted"),
-            "pipeline_version": result["pipeline_version"],
-            "processing_time_ms": result.get("processing_time_ms"),
-        }).execute()
+        sb.table("netra_scans").upsert(payload).execute()
+        saved = True
+        logger.info("Persisted NETRA scan %s to public.netra_scans table.", scan_id)
     except Exception as exc:
-        logger.warning("Supabase persist failed (%s)", exc)
+        logger.debug("Supabase public.netra_scans persist failed (%s)", exc)
+
+    # 2. Try netra.scans schema table if custom schema exposed
+    if not saved:
+        try:
+            sb.schema("netra").table("scans").upsert(payload).execute()
+            saved = True
+            logger.info("Persisted NETRA scan %s to netra.scans table.", scan_id)
+        except Exception as exc:
+            logger.warning(
+                "Supabase NETRA persist failed (%s). "
+                "To store scans in Supabase DB, run backend/supabase/netra_schema.sql in your Supabase SQL Editor.",
+                exc
+            )
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1584,13 +1607,29 @@ def get_scan_by_id(scan_id: str) -> dict | None:
     sb = _get_supabase()
     if sb is None:
         return None
+
+    # Try public.netra_scans first
     try:
-        resp = sb.schema("netra").table("scans").select("*").eq("id", scan_id).single().execute()
-        if resp.data:
-            _scan_store[scan_id] = resp.data
-            return resp.data
+        resp = sb.table("netra_scans").select("*").eq("id", scan_id).limit(1).execute()
+        if resp.data and len(resp.data) > 0:
+            row = resp.data[0]
+            data = row.get("details") or row
+            _scan_store[scan_id] = data
+            return data
     except Exception as exc:
-        logger.debug("Supabase scan lookup failed for %s: %s", scan_id, exc)
+        logger.debug("Supabase public.netra_scans lookup failed for %s: %s", scan_id, exc)
+
+    # Try netra.scans next
+    try:
+        resp = sb.schema("netra").table("scans").select("*").eq("id", scan_id).limit(1).execute()
+        if resp.data and len(resp.data) > 0:
+            row = resp.data[0]
+            data = row.get("details") or row
+            _scan_store[scan_id] = data
+            return data
+    except Exception as exc:
+        logger.debug("Supabase netra.scans lookup failed for %s: %s", scan_id, exc)
+
     return None
 
 
@@ -1621,21 +1660,24 @@ def check_serial_number(number: str) -> dict:
 def get_stats() -> dict:
     sb = _get_supabase()
     if sb is not None:
-        try:
-            total_r  = sb.schema("netra").table("scans").select("id", count="exact").execute()
-            total    = total_r.count or 0
-            cf_r     = sb.schema("netra").table("scans").select("id", count="exact").eq("verdict", "COUNTERFEIT").execute()
-            auth_r   = sb.schema("netra").table("scans").select("id", count="exact").eq("verdict", "AUTHENTIC").execute()
-            counterfeits = cf_r.count or 0
-            authentic    = auth_r.count or 0
-            return {
-                "total_scans": total, "counterfeits": counterfeits,
-                "authentic": authentic, "suspicious": max(0, total - counterfeits - authentic),
-                "counterfeit_rate": round(counterfeits / max(total, 1) * 100, 2),
-                "accuracy": 98.7, "source": "supabase",
-            }
-        except Exception as exc:
-            logger.debug("Supabase stats failed: %s", exc)
+        for tbl_getter in [lambda: sb.table("netra_scans"), lambda: sb.schema("netra").table("scans")]:
+            try:
+                tbl = tbl_getter()
+                total_r  = tbl.select("id", count="exact").execute()
+                total    = total_r.count if total_r.count is not None else len(total_r.data)
+                if total > 0:
+                    cf_r     = tbl.select("id", count="exact").eq("verdict", "COUNTERFEIT").execute()
+                    auth_r   = tbl.select("id", count="exact").eq("verdict", "AUTHENTIC").execute()
+                    counterfeits = cf_r.count if cf_r.count is not None else 0
+                    authentic    = auth_r.count if auth_r.count is not None else 0
+                    return {
+                        "total_scans": total, "counterfeits": counterfeits,
+                        "authentic": authentic, "suspicious": max(0, total - counterfeits - authentic),
+                        "counterfeit_rate": round(counterfeits / max(total, 1) * 100, 2),
+                        "accuracy": 98.7, "source": "supabase",
+                    }
+            except Exception as exc:
+                logger.debug("Supabase stats query failed: %s", exc)
 
     total = _global_stats["total_scans"]
     return {
@@ -1648,17 +1690,36 @@ def get_stats() -> dict:
 
 def get_scan_history(limit: int = 20) -> list[dict]:
     sb = _get_supabase()
+    rows = []
     if sb is not None:
+        # Try public.netra_scans first
         try:
-            resp = (sb.schema("netra").table("scans")
-                    .select("id, created_at, verdict, confidence, denomination")
-                    .order("created_at", desc=True).limit(limit).execute())
+            resp = sb.table("netra_scans").select("*").order("created_at", desc=True).limit(limit).execute()
             if resp.data:
-                return [{"id": r["id"], "timestamp": r.get("created_at", ""),
-                         "verdict": r["verdict"], "confidence": r["confidence"],
-                         "denomination": r.get("denomination")} for r in resp.data]
+                rows = resp.data
         except Exception as exc:
-            logger.debug("Supabase history failed: %s", exc)
+            logger.debug("Supabase public.netra_scans history failed: %s", exc)
+
+        # Try netra.scans next if public returned empty
+        if not rows:
+            try:
+                resp = sb.schema("netra").table("scans").select("*").order("created_at", desc=True).limit(limit).execute()
+                if resp.data:
+                    rows = resp.data
+            except Exception as exc:
+                logger.debug("Supabase netra.scans history failed: %s", exc)
+
+    if rows:
+        out = []
+        for r in rows:
+            out.append({
+                "id": r["id"],
+                "timestamp": r.get("created_at", ""),
+                "verdict": r.get("verdict", "UNKNOWN"),
+                "confidence": r.get("confidence", 0.0),
+                "denomination": r.get("denomination"),
+            })
+        return out
 
     recent_ids = _scan_order[-limit:]
     history: list[dict] = []

@@ -56,6 +56,7 @@ interface Props {
   citizenReports: CitizenReport[];
   showHeatmap: boolean;
   onHotspotClick: (h: HotspotDetailed) => void;
+  focusedCoords?: { lat: number; lng: number } | null;
 }
 
 // ── Colour helpers ────────────────────────────────────────────────────────────
@@ -77,10 +78,20 @@ function SetIndiaBounds() {
   return null;
 }
 
+function MapFlyTo({ coords }: { coords?: { lat: number; lng: number } | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords && typeof coords.lat === "number" && typeof coords.lng === "number") {
+      map.flyTo([coords.lat, coords.lng], 9, { duration: 1.2 });
+    }
+  }, [coords, map]);
+  return null;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function DrishtiLeafletMap({
   incidents, hotspots, predictions, patrolRoutes,
-  citizenReports, showHeatmap, onHotspotClick,
+  citizenReports, showHeatmap, onHotspotClick, focusedCoords,
 }: Props) {
   const [isMounted, setIsMounted] = useState(false);
 
@@ -106,6 +117,7 @@ export default function DrishtiLeafletMap({
       zoomControl={true}
     >
       <SetIndiaBounds />
+      <MapFlyTo coords={focusedCoords} />
 
       {/* Dark OSM tile layer */}
       <TileLayer
@@ -115,19 +127,18 @@ export default function DrishtiLeafletMap({
         maxZoom={19}
       />
 
-      {/* ── Heatmap blobs (soft radial glow per incident) ── */}
-      {showHeatmap && incidents.map(inc => {
-        const r = inc.severity === "critical" ? 28000 : inc.severity === "high" ? 20000 : 13000;
-        const col = SEV_COLOR[inc.severity] ?? "#888";
-        return (
-          <Circle
-            key={`heat-${inc.id}`}
-            center={[inc.lat, inc.lng]}
-            radius={r}
-            pathOptions={{ color: col, fillColor: col, fillOpacity: 0.08, weight: 0 }}
-          />
-        );
-      })}
+      {/* ── Heatmap blobs (soft radial glow per incident & report) ── */}
+      {showHeatmap && [
+        ...incidents.map(inc => ({ id: `inc-${inc.id}`, lat: inc.lat, lng: inc.lng, color: SEV_COLOR[inc.severity] ?? "#888", r: inc.severity === "critical" ? 28000 : inc.severity === "high" ? 20000 : 13000 })),
+        ...citizenReports.map(cr => ({ id: `cr-${cr.id}`, lat: cr.lat, lng: cr.lng, color: TYPE_COLOR[cr.type] ?? "#818CF8", r: 18000 })),
+      ].map(point => (
+        <Circle
+          key={`heat-${point.id}`}
+          center={[point.lat, point.lng]}
+          radius={point.r}
+          pathOptions={{ color: point.color, fillColor: point.color, fillOpacity: 0.1, weight: 0 }}
+        />
+      ))}
 
       {/* ── Prediction zones ── */}
       {predictions.map(p => (

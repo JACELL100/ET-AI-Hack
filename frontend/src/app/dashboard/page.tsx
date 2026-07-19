@@ -77,22 +77,26 @@ export default function CitizenDashboard() {
       
       {/* Citizen Header / Navigation Bar */}
       <header style={{ height: "64px", background: "var(--bg-secondary)", borderBottom: "1px solid var(--bg-border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2rem", position: "sticky", top: 0, zIndex: 40 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <div style={{ width: "32px", height: "32px", background: "var(--accent)", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Shield size={17} color="white" strokeWidth={2.5} />
           </div>
           <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", color: "var(--text-primary)" }}>
             RAKSHA<span style={{ color: "var(--accent)" }}>·AI</span>
           </span>
+          <span style={{ fontSize: "0.6875rem", fontWeight: 700, color: "#10B981", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: "100px", padding: "0.2rem 0.6rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Citizen Portal
+          </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
             Welcome, <strong>{user.name}</strong>
           </span>
+
           <button onClick={toggleTheme} style={{ background: "none", border: "1px solid var(--bg-border)", borderRadius: "6px", width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-secondary)" }}>
             {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
           </button>
-          <button onClick={logout} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.75rem", border: "1px solid var(--bg-border)", borderRadius: "6px", background: "transparent", color: "var(--text-secondary)", fontSize: "0.8125rem", cursor: "pointer" }}>
+          <button onClick={() => logout("citizen")} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.75rem", border: "1px solid var(--bg-border)", borderRadius: "6px", background: "transparent", color: "var(--text-secondary)", fontSize: "0.8125rem", cursor: "pointer" }}>
             <LogOut size={13} /> Sign Out
           </button>
         </div>
