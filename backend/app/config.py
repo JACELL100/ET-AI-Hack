@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     sentinel_threat_threshold_medium: float = 40.0
     sentinel_similarity_threshold: float = 0.75
 
+    # NumVerify — Phone number carrier & owner lookup (numverify.com)
+    numverify_api_key: str = ""          # Free: 1000 req/month — https://numverify.com
+    numverify_base_url: str = "http://apilayer.net/api/validate"
+
+    # AbstractAPI — Phone validation fallback (abstractapi.com)
+    abstract_phone_api_key: str = ""     # Free tier: 500 req/month
+
     # Groq AI — LLM for WhatsApp chat analysis
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"

@@ -24,6 +24,51 @@ export interface Alert {
   module?: string;
 }
 
+// ── Phone Number Lookup ───────────────────────────────────────────────────────
+export interface ThreatReport {
+  source: string;   // "RAKSHA_DB" | "TRAI" | "TRUECALLER_CROWD"
+  type: string;     // "Digital Arrest" | "Customs Parcel Scam" | …
+  date: string;
+  description: string;
+}
+
+export interface PhoneNumberLookupResult {
+  phone: string;
+  formatted: string;
+  is_valid: boolean;
+  risk_score: number;
+  verdict: "SAFE" | "SUSPICIOUS" | "KNOWN_SCAM";
+  is_flagged: boolean;
+  carrier: string | null;
+  line_type: string | null;
+  telecom_circle: string | null;
+  country_code: string;
+  country: string;
+  subscriber_name: string | null;
+  name_source: string | null;
+  caller_type: string | null;   // "personal" | "business" | "call_centre" | "robocall" | "spoofed" | "telemarketer"
+  reports_count: number;
+  reports: ThreatReport[];
+  last_reported: string | null;
+  scam_categories: string[];
+  intelligence_sources: string[];
+  lookup_timestamp: string;
+  osint: {
+    name: string | null;
+    name_source: string | null;
+    spam_count: number;
+    spam_tags: string[];
+    caller_type: string;
+    reasoning: string;
+    ai_risk_score: number;
+    ai_risk_level: string;
+    signals: string[];
+    public_profiles: Array<{ source: string; url: string; name?: string; spam_count?: number }>;
+    sources_checked: string[];
+    sources_hit: string[];
+  } | null;
+}
+
 // ── SENTINEL ─────────────────────────────────────────────────────────────────
 export type SentinelInputTab = "simulate" | "upload" | "text" | "cdr";
 

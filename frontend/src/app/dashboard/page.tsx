@@ -4,19 +4,16 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Shield, MessageCircle, AlertTriangle, CheckCircle,
-  FileText, ShieldCheck, Phone, Check, RefreshCw, X, LogOut, Sun, Moon, Send
+  FileText, ShieldCheck, Phone, RefreshCw, X, LogOut, Sun, Moon, Send
 } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthContext";
 import { useTheme } from "@/components/providers/ThemeProvider";
+import { PhoneNumberLookup } from "@/components/sentinel/PhoneNumberLookup";
 
 export default function CitizenDashboard() {
   const { user, loading, logout, registerCitizen } = useAuth();
   const { theme, toggleTheme } = useTheme();
   
-  // Quick check state
-  const [phoneInput, setPhoneInput] = useState("");
-  const [checking, setChecking] = useState(false);
-  const [checkResult, setCheckResult] = useState<null | { safe: boolean; riskScore: number; reason: string }>(null);
   const [showReportModal, setShowReportModal] = useState(false);
 
   // Auth protection check
@@ -40,32 +37,6 @@ export default function CitizenDashboard() {
       </div>
     );
   }
-
-  const handlePhoneCheck = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneInput.trim()) return;
-    setChecking(true);
-    setCheckResult(null);
-
-    // Simulate reputation lookup
-    await new Promise(r => setTimeout(r, 1200));
-    setChecking(false);
-    
-    // Check mock heuristics
-    if (phoneInput.includes("140") || phoneInput.endsWith("000") || phoneInput.includes("9876")) {
-      setCheckResult({
-        safe: false,
-        riskScore: 88,
-        reason: "This number matches active 'CBI Impersonation' call scripts flagged in SENTINEL."
-      });
-    } else {
-      setCheckResult({
-        safe: true,
-        riskScore: 12,
-        reason: "No active report records found for this number. Always practice caution."
-      });
-    }
-  };
 
   const localAlerts = [
     { id: 1, title: "Customs Officer Video Call Scam", desc: "Scammers claiming you have illegal parcels are active in Maharashtra.", date: "Today" },
@@ -174,42 +145,9 @@ export default function CitizenDashboard() {
 
         </div>
 
-        {/* Reputation Lookup Tool */}
+        {/* Phone Number Safety Lookup */}
         <div style={{ background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-xl)", padding: "1.75rem 2rem" }}>
-          <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.25rem", fontWeight: 800, color: "var(--text-primary)", marginBottom: "0.375rem" }}>
-            Quick Phone Number Safety Lookup
-          </h3>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", marginBottom: "1.25rem" }}>
-            Instantly query our database for reported spam calls, digital arrest threats, or fraudulent numbers.
-          </p>
-
-          <form onSubmit={handlePhoneCheck} style={{ display: "flex", gap: "0.75rem" }}>
-            <div style={{ position: "relative", flex: 1 }}>
-              <Phone size={16} color="var(--text-muted)" style={{ position: "absolute", left: "1rem", top: "50%", transform: "translateY(-50%)" }} />
-              <input type="tel" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="Enter 10-digit mobile number..."
-                style={{ width: "100%", padding: "0.75rem 1rem 0.75rem 2.75rem", background: "var(--bg-tertiary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", color: "var(--text-primary)", outline: "none" }} />
-            </div>
-            <button type="submit" disabled={checking} className="btn btn-primary" style={{ flexShrink: 0 }}>
-              {checking ? "Checking..." : "Verify Number"}
-            </button>
-          </form>
-
-          {/* Results panel */}
-          {checkResult && (
-            <div style={{ marginTop: "1.25rem", padding: "1.25rem", background: checkResult.safe ? "rgba(16,185,129,0.06)" : "rgba(230,58,30,0.06)", border: `1px solid ${checkResult.safe ? "rgba(16,185,129,0.2)" : "rgba(230,58,30,0.2)"}`, borderRadius: "var(--radius-md)", display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-              <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: checkResult.safe ? "#10B981" : "var(--accent)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {checkResult.safe ? <Check size={14} /> : <AlertTriangle size={14} />}
-              </div>
-              <div>
-                <div style={{ fontSize: "0.875rem", fontWeight: 700, color: checkResult.safe ? "#10B981" : "var(--accent)" }}>
-                  {checkResult.safe ? "NO THREAT DETECTED" : "FLAGGED SUSPICIOUS"} (Score: {checkResult.riskScore}/100)
-                </div>
-                <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginTop: "0.25rem", lineHeight: 1.5 }}>
-                  {checkResult.reason}
-                </p>
-              </div>
-            </div>
-          )}
+          <PhoneNumberLookup />
         </div>
 
         {/* Security Advisories */}

@@ -61,6 +61,41 @@ class SentinelAnalysisResult(BaseModel):
     confidence: float
 
 
+class ThreatReport(BaseModel):
+    """A single crowd-sourced or database threat report for a phone number."""
+    source: str           # e.g. "RAKSHA_DB", "TRAI", "TRUECALLER_CROWD"
+    type: str             # e.g. "DIGITAL_ARREST", "KYC_FRAUD", "SPAM"
+    date: str             # ISO date string
+    description: str
+
+
+class PhoneNumberLookupResult(BaseModel):
+    """Enriched phone number reputation + owner metadata result."""
+    phone: str
+    formatted: str                         # e.g. "+91 98765 43210"
+    is_valid: bool
+    risk_score: float                      # 0–100
+    verdict: str                           # SAFE | SUSPICIOUS | KNOWN_SCAM
+    is_flagged: bool
+
+    # Owner / carrier metadata
+    carrier: Optional[str] = None          # e.g. "Jio", "Airtel", "BSNL"
+    line_type: Optional[str] = None        # "mobile" | "landline" | "voip"
+    telecom_circle: Optional[str] = None   # e.g. "Maharashtra", "Delhi"
+    country_code: str = "91"
+    country: str = "India"
+
+    # Intelligence
+    reports_count: int = 0
+    reports: list[ThreatReport] = Field(default_factory=list)
+    last_reported: Optional[str] = None   # ISO date of most recent report
+    scam_categories: list[str] = Field(default_factory=list)
+
+    # Source metadata
+    intelligence_sources: list[str] = Field(default_factory=list)
+    lookup_timestamp: str = ""
+
+
 class TranscriptSegment(BaseModel):
     speaker: str = "CALLER"
     text: str = ""

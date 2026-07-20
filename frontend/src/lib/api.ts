@@ -82,8 +82,8 @@ export const analyseAudio = (file: File) => {
 
 export const checkPhoneNumber = (phone: string) =>
   api
-    .get<ApiResponse<{ risk_score: number; reports: number }>>(
-      `/api/v1/sentinel/number/${phone}`,
+    .get<ApiResponse<import("@/types").PhoneNumberLookupResult>>(
+      `/api/v1/sentinel/number/${encodeURIComponent(phone)}`,
     )
     .then((r) => r.data);
 
@@ -194,6 +194,20 @@ export const getJaalGraph = (id: string) =>
     .get<ApiResponse<{ nodes: GraphNode[]; edges: GraphEdge[] }>>(
       `/api/v1/jaal/graph/${id}`,
     )
+    .then((r) => r.data);
+
+export const getJaalStats = () =>
+  api
+    .get<
+      ApiResponse<{
+        total_nodes: number;
+        total_edges: number;
+        total_communities: number;
+        high_risk_nodes: number;
+        frozen_accounts: number;
+        active_investigations: number;
+      }>
+    >("/api/v1/jaal/stats")
     .then((r) => r.data);
 
 // ── DRISHTI ───────────────────────────────────────────────────────────────────

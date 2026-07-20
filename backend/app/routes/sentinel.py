@@ -57,9 +57,25 @@ async def analyse_audio(file: UploadFile = File(...)):
 # ── Number Reputation ──────────────────────────────────────────────────────
 
 @router.get("/number/{phone}")
-def number_reputation(phone: str = PathParam(...)):
-    """Check phone number reputation against scam databases."""
-    return ok(sentinel_service.check_number(phone))
+async def number_reputation(phone: str = PathParam(...)):
+    """
+    Enriched phone number safety lookup.
+
+    Returns carrier, telecom circle, threat intelligence, and crowd-sourced
+    scam reports for a given Indian mobile number.
+
+    The ``phone`` path parameter accepts:
+    - Raw 10-digit number:  9876543210
+    - With country code:    919876543210  or  +919876543210
+    - Formatted:            +91-98765-43210
+    """
+    try:
+        result = await sentinel_service.check_number_enriched(phone)
+        return ok(result)
+    except Exception as exc:
+        logger.error("Number lookup failed: %s", exc)
+        # Fall back to the lightweight sync check so the endpoint always responds
+        return ok(sentinel_service.check_number(phone))
 
 
 # ── Alerts ─────────────────────────────────────────────────────────────────
