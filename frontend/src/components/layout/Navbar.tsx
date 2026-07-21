@@ -34,7 +34,7 @@ export function Navbar() {
 
   // Hide Navbar on dashboard & admin views — evaluated only after mount
   // so SSR and initial client render always produce the same output (null).
-  const hideNavbarPaths = ["/dashboard", "/admin", "/sentinel", "/netra", "/jaal", "/drishti", "/kavach", "/settings"];
+  const hideNavbarPaths = ["/dashboard", "/admin", "/sentinel", "/netra", "/jaal", "/drishti", "/kavach", "/settings", "/phone-safety", "/report-fraud"];
   const shouldHide = mounted && hideNavbarPaths.some(p => pathname.startsWith(p));
 
   if (!mounted || shouldHide) return null;

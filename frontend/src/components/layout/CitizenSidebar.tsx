@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Shield, Eye, MessageCircle, LayoutDashboard,
+  Shield, Eye, MessageCircle, LayoutDashboard, FileText, Phone,
   Sun, Moon, LogOut
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -15,6 +15,8 @@ export const citizenNavItems = [
   { label: "Citizen Shield (KAVACH)", href: "/kavach", icon: MessageCircle, color: "#22D3EE" },
   { label: "Verify Banknotes (NETRA)", href: "/netra", icon: Eye, color: "#10B981" },
   { label: "SENTINEL", href: "/sentinel", icon: Shield, color: "#E63A1E" },
+  { label: "Phone Safety", href: "/phone-safety", icon: Phone, color: "#F97316" },
+  { label: "Report Fraud", href: "/report-fraud", icon: FileText, color: "#E63A1E" },
 ];
 
 export function CitizenSidebar() {
