@@ -8,14 +8,16 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import httpx
 
 from app.config import settings
 from app.models.schemas import Alert
-from app.services.sentinel_engine import AnalysisResult, get_engine
 from app.services.authkey_service import AuthkeyService, get_authkey_service
+
+if TYPE_CHECKING:
+    from app.services.sentinel_engine import AnalysisResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,8 @@ _RECENT_ALERTS: list[Alert] = [
 # ---------------------------------------------------------------------------
 
 def _get_engine():
+    from app.services.sentinel_engine import get_engine
+
     return get_engine(
         whisper_model=settings.sentinel_whisper_model,
         whisper_device=settings.sentinel_whisper_device,
@@ -72,7 +76,7 @@ def _get_engine():
 def analyse_text(text: str) -> dict:
     """Analyse text for scam patterns using the full engine."""
     engine = _get_engine()
-    result: AnalysisResult = engine.analyse_text(text)
+    result: "AnalysisResult" = engine.analyse_text(text)
     return result.to_dict()
 
 
@@ -83,7 +87,7 @@ def analyse_text(text: str) -> dict:
 def analyse_audio(audio_bytes: bytes, suffix: str = ".wav") -> dict:
     """Full audio analysis: STT → Classification → Voice → Scoring."""
     engine = _get_engine()
-    result: AnalysisResult = engine.analyse_audio(audio_bytes, suffix=suffix)
+    result: "AnalysisResult" = engine.analyse_audio(audio_bytes, suffix=suffix)
     return result.to_dict()
 
 

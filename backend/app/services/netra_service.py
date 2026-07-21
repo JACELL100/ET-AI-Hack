@@ -38,8 +38,6 @@ import warnings
 from datetime import datetime, timezone
 from typing import Any
 
-from app.services import netra_model_service
-
 logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", message=".*quantize_per_tensor.*")
@@ -1485,13 +1483,19 @@ def _persist_scan(scan_id: str, result: dict) -> None:
             )
 
 
+def _netra_model_service():
+    from app.services import netra_model_service
+
+    return netra_model_service
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Registered-model-only pipeline (OpenCV unavailable)
 # ═════════════════════════════════════════════════════════════════════════════
 
 def _model_only_pipeline(image_bytes: bytes, denomination_hint: str | None) -> dict:
     """Use only a release-approved trained classifier; never invent features."""
-    inference = netra_model_service.classify(image_bytes)
+    inference = _netra_model_service().classify(image_bytes)
     counterfeit_probability = float(inference["counterfeitProbability"])
     return {
         "scan_id": str(uuid.uuid4()), "verdict": inference["verdict"], "confidence": inference["confidence"],
@@ -1586,9 +1590,9 @@ def scan_currency_image(image_bytes: bytes, denomination_hint: str | None = None
     # A registered classifier is an independent signal.  It can elevate a
     # strong counterfeit finding, but disagreement is routed to manual review
     # instead of overwriting physical-security evidence with a black-box score.
-    model_state = netra_model_service.status()
+    model_state = _netra_model_service().status()
     if model_state.get("ready"):
-        inference = netra_model_service.classify(image_bytes)
+        inference = _netra_model_service().classify(image_bytes)
         result["ml_classifier"] = inference["model"]
         result["counterfeit_probability"] = inference["counterfeitProbability"]
         model_verdict = inference["verdict"]
