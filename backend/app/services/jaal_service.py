@@ -14,6 +14,9 @@ import json
 import re
 from uuid import uuid4
 
+from app.services.evidence_ledger import append_evidence
+from app.services.evidence_package_store import get_package, persist_package, verify_package
+
 # ---------------------------------------------------------------------------
 # Community manifest (returned by get_communities)
 # ---------------------------------------------------------------------------
@@ -808,6 +811,11 @@ _CITIZEN_NODES: list[dict] = []
 _CITIZEN_EDGES: list[dict] = []
 _CITIZEN_REPORTS: list[dict] = []
 _EVIDENCE_PACKAGES: list[dict] = []
+# Signed telecom, video, and payment events are separated from allegations and
+# pre-seeded examples.  Investigators can promote them only after review.
+_LIVE_NODES: list[dict] = []
+_LIVE_EDGES: list[dict] = []
+_LIVE_SIGNALS: list[dict] = []
 
 
 def _now() -> str:
@@ -832,7 +840,10 @@ def _all_graphs() -> list[tuple[str, list[dict], list[dict]]]:
     return [
         (cluster_id, nodes, edges)
         for cluster_id, (nodes, edges) in _CLUSTER_GRAPHS.items()
-    ] + [("c-citizen-signals", _CITIZEN_NODES, _CITIZEN_EDGES)]
+    ] + [
+        ("c-citizen-signals", _CITIZEN_NODES, _CITIZEN_EDGES),
+        ("c-live-intelligence", _LIVE_NODES, _LIVE_EDGES),
+    ]
 
 
 def _citizen_community() -> dict:
@@ -847,6 +858,27 @@ def _citizen_community() -> dict:
         "status": "review",
     }
 
+
+def _live_community() -> dict:
+    return {
+        "id": "c-live-intelligence",
+        "name": "Signed Live Intelligence Review Queue",
+        "nodeCount": len(_LIVE_NODES),
+        "riskScore": max((float(node.get("riskScore", 0)) for node in _LIVE_NODES), default=0.0),
+        "primaryType": "phone",
+        "lastActive": _LIVE_SIGNALS[0]["timestamp"] if _LIVE_SIGNALS else _now(),
+        "description": "Authorised multi-source leads pending investigator corroboration; not an automated finding of guilt.",
+        "status": "review",
+    }
+
+
+def _community_meta(community_id: str) -> dict:
+    if community_id == "c-citizen-signals":
+        return _citizen_community()
+    if community_id == "c-live-intelligence":
+        return _live_community()
+    return _CLUSTER_META.get(community_id, _COMMUNITIES[0])
+
 # ---------------------------------------------------------------------------
 # Public service functions
 # ---------------------------------------------------------------------------
@@ -854,7 +886,7 @@ def _citizen_community() -> dict:
 
 def get_communities() -> list[dict]:
     """Return the community manifest for all known fraud rings."""
-    return [*_COMMUNITIES, _citizen_community()]
+    return [*_COMMUNITIES, _citizen_community(), _live_community()]
 
 
 def get_graph(cluster_id: str) -> dict:
@@ -862,6 +894,9 @@ def get_graph(cluster_id: str) -> dict:
     if cluster_id == "c-citizen-signals":
         meta = _citizen_community()
         nodes, edges = _CITIZEN_NODES, _CITIZEN_EDGES
+    elif cluster_id == "c-live-intelligence":
+        meta = _live_community()
+        nodes, edges = _LIVE_NODES, _LIVE_EDGES
     else:
         nodes, edges = _CLUSTER_GRAPHS.get(
             cluster_id,
@@ -886,8 +921,8 @@ def get_graph(cluster_id: str) -> dict:
 
 def get_stats() -> dict:
     """Return aggregate statistics across all clusters."""
-    all_nodes = _MUMBAI_NODES + _JAMTARA_NODES + _DELHI_NODES + _CITIZEN_NODES
-    all_edges = _MUMBAI_EDGES + _JAMTARA_EDGES + _DELHI_EDGES + _CITIZEN_EDGES
+    all_nodes = _MUMBAI_NODES + _JAMTARA_NODES + _DELHI_NODES + _CITIZEN_NODES + _LIVE_NODES
+    all_edges = _MUMBAI_EDGES + _JAMTARA_EDGES + _DELHI_EDGES + _CITIZEN_EDGES + _LIVE_EDGES
 
     frozen = sum(
         1
@@ -899,11 +934,12 @@ def get_stats() -> dict:
     return {
         "total_nodes": len(all_nodes),
         "total_edges": len(all_edges),
-        "total_communities": len(_COMMUNITIES) + 1,
+        "total_communities": len(_COMMUNITIES) + 2,
         "high_risk_nodes": high_risk,
         "frozen_accounts": frozen,
         "active_investigations": len(_COMMUNITIES),
         "pending_citizen_signals": len(_CITIZEN_REPORTS),
+        "pending_live_intelligence_signals": len(_LIVE_SIGNALS),
     }
 
 
@@ -921,7 +957,7 @@ def search_entities(query: str, limit: int = 10) -> list[dict]:
                 "type": node["type"],
                 "riskScore": node.get("riskScore", 0),
                 "communityId": community_id,
-                "communityName": (_CLUSTER_META.get(community_id) or _citizen_community())["name"],
+                "communityName": _community_meta(community_id)["name"],
                 "connections": links,
                 "status": "known" if community_id != "c-citizen-signals" else "under_review",
             })
@@ -1047,6 +1083,62 @@ def ingest_module_signal(
     return result
 
 
+def _mask_entity(value: str) -> str:
+    cleaned = value.strip()
+    if len(cleaned) <= 4:
+        return "••••"
+    return f"••••{cleaned[-4:]}"
+
+
+def _live_node(value: str, entity_type: str, risk_score: float, evidence_ref: str) -> dict:
+    """Find/create a privacy-minimised node for a signed partner lead."""
+    existing = _find_existing_node(value)
+    if existing:
+        node = existing[1]
+        node["riskScore"] = max(float(node.get("riskScore", 0)), risk_score)
+        node.setdefault("evidenceRefs", []).append(evidence_ref)
+        return node
+    digest = sha256(_normalise(value).encode("utf-8")).hexdigest()[:16]
+    type_map = {"caller": "phone", "callee": "phone", "beneficiary": "account"}
+    node = {
+        "id": f"live-{entity_type}-{digest}",
+        "label": f"{type_map.get(entity_type, entity_type).title()} {_mask_entity(value)}",
+        "type": type_map.get(entity_type, "person"),
+        "riskScore": round(risk_score, 3),
+        "metadata": {"status": "signed signal awaiting review", "fingerprint": f"sha256:{digest}"},
+        "evidenceRefs": [evidence_ref],
+    }
+    _LIVE_NODES.append(node)
+    return node
+
+
+def ingest_verified_signal(signal: dict) -> dict:
+    """Correlate an authorised live event without exposing raw subscriber data."""
+    risk = min(1.0, max(0.0, float(signal.get("riskScore", 0))))
+    evidence_ref = signal["evidenceRef"]
+    primary = _live_node(signal["caller"], "caller", risk, evidence_ref)
+    related: list[tuple[str, dict]] = []
+    for field in ("callee", "beneficiary"):
+        value = signal.get(field)
+        if value:
+            related.append((field, _live_node(value, field, risk * 0.9, evidence_ref)))
+    timestamp = _now()
+    for relation, node in related:
+        edge_id = f"live-edge-{uuid4().hex[:12]}"
+        _LIVE_EDGES.append({
+            "id": edge_id, "source": primary["id"], "target": node["id"],
+            "type": "CALLED" if relation == "callee" else "PAYMENT_RISK_LINK",
+            "weight": round(risk, 3), "timestamp": timestamp, "evidenceRefs": [evidence_ref],
+        })
+    record = {
+        "eventId": signal["eventId"], "timestamp": timestamp, "source": signal.get("source", "authorised partner"),
+        "riskScore": risk, "primaryNodeId": primary["id"], "relatedNodeIds": [node["id"] for _, node in related],
+        "evidenceRef": evidence_ref, "description": signal.get("description", ""), "status": "awaiting investigator review",
+    }
+    _LIVE_SIGNALS.insert(0, record)
+    return record
+
+
 def trace_relationships(req: dict) -> dict:
     """Breadth-first path discovery with relationship and transfer annotations."""
     source_id, target_id = req["sourceId"], req["targetId"]
@@ -1117,11 +1209,31 @@ def generate_evidence_package(req: dict) -> dict:
         "edges": included_edges,
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    ledger_record = append_evidence(
+        "JAAL_EVIDENCE_PACKAGE", payload, actor=req.get("investigator") or "Unassigned", source="JAAL"
+    )
     package = {
         "id": f"EP-{uuid4().hex[:12].upper()}",
-        "integrity": {"algorithm": "SHA-256", "hash": sha256(canonical.encode("utf-8")).hexdigest(), "generatedAt": generated_at},
-        "chainOfCustody": [{"event": "PACKAGE_GENERATED", "at": generated_at, "actor": req.get("investigator") or "Unassigned"}],
+        "integrity": {
+            "algorithm": "SHA-256", "hash": sha256(canonical.encode("utf-8")).hexdigest(), "generatedAt": generated_at,
+            "ledgerEvidenceId": ledger_record["evidence_id"], "ledgerRecordHash": ledger_record["evidence_hash"],
+        },
+        "chainOfCustody": [
+            {"event": "PACKAGE_GENERATED", "at": generated_at, "actor": req.get("investigator") or "Unassigned"},
+            {"event": "APPEND_ONLY_LEDGER_RECORDED", "at": generated_at, "actor": "JAAL", "evidenceId": ledger_record["evidence_id"]},
+        ],
         "payload": payload,
     }
+    persist_package(package)
     _EVIDENCE_PACKAGES.insert(0, package)
     return package
+
+
+def get_evidence_package(package_id: str) -> dict | None:
+    """Load an immutable evidence package from durable storage, not RAM."""
+    return get_package(package_id)
+
+
+def verify_evidence_package(package_id: str) -> dict:
+    """Independently validate package bytes and the signed ledger chain."""
+    return verify_package(package_id)

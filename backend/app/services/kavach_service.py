@@ -16,15 +16,42 @@ logger = logging.getLogger(__name__)
 # RAG chat (primary path)
 # ---------------------------------------------------------------------------
 
-def reply(message: str, session_id: str | None = None) -> dict:
+SUPPORTED_LANGUAGES = {
+    "en": "English", "hi": "Hindi", "bn": "Bengali", "te": "Telugu", "mr": "Marathi", "ta": "Tamil",
+    "gu": "Gujarati", "ur": "Urdu", "kn": "Kannada", "or": "Odia", "ml": "Malayalam", "pa": "Punjabi",
+}
+
+_EMERGENCY_ADVISORIES = {
+    "en": "Digital arrest is a scam. Do not transfer money or share OTP/PIN. End the call, tell a trusted person, and call 1930 immediately.",
+    "hi": "डिजिटल अरेस्ट एक ठगी है। पैसे ट्रांसफर न करें और OTP/PIN साझा न करें। कॉल बंद करें, किसी भरोसेमंद व्यक्ति को बताएं और तुरंत 1930 पर कॉल करें।",
+    "bn": "ডিজিটাল অ্যারেস্ট একটি প্রতারণা। টাকা পাঠাবেন না বা OTP/PIN দেবেন না। কলটি বন্ধ করে বিশ্বস্ত কাউকে জানান এবং সঙ্গে সঙ্গে 1930-এ ফোন করুন।",
+    "te": "డిజిటల్ అరెస్ట్ మోసం. డబ్బు బదిలీ చేయవద్దు, OTP/PIN పంచుకోవద్దు. కాల్‌ను ముగించి, నమ్మకమైన వ్యక్తికి చెప్పి వెంటనే 1930కు కాల్ చేయండి.",
+    "mr": "डिजिटल अरेस्ट ही फसवणूक आहे. पैसे पाठवू नका किंवा OTP/PIN देऊ नका. कॉल बंद करा, विश्वासू व्यक्तीला सांगा आणि त्वरित 1930 वर कॉल करा.",
+    "ta": "டிஜிட்டல் கைது ஒரு மோசடி. பணம் அனுப்பவோ OTP/PIN பகிரவோ வேண்டாம். அழைப்பை முடித்து, நம்பகமான ஒருவரிடம் தெரிவித்து உடனே 1930-ஐ அழைக்கவும்.",
+    "gu": "ડિજિટલ અરેસ્ટ એક છેતરપિંડી છે. પૈસા ટ્રાન્સફર ન કરો કે OTP/PIN શેર ન કરો. કૉલ બંધ કરો, વિશ્વાસુ વ્યક્તિને જણાવો અને તરત 1930 પર કૉલ કરો.",
+    "ur": "ڈیجیٹل گرفتاری ایک فراڈ ہے۔ رقم منتقل نہ کریں اور OTP/PIN شیئر نہ کریں۔ کال ختم کریں، کسی قابلِ اعتماد شخص کو بتائیں اور فوراً 1930 پر کال کریں۔",
+    "kn": "ಡಿಜಿಟಲ್ ಅರೆಸ್ಟ್ ವಂಚನೆ. ಹಣ ವರ್ಗಾಯಿಸಬೇಡಿ ಅಥವಾ OTP/PIN ಹಂಚಿಕೊಳ್ಳಬೇಡಿ. ಕರೆಯನ್ನು ಕೊನೆಗೊಳಿಸಿ, ನಂಬಿಕೆಯ ವ್ಯಕ್ತಿಗೆ ತಿಳಿಸಿ ಮತ್ತು ತಕ್ಷಣ 1930 ಗೆ ಕರೆ ಮಾಡಿ.",
+    "or": "ଡିଜିଟାଲ ଗିରଫ ଏକ ଠକେଇ। ଟଙ୍କା ପଠାନ୍ତୁ ନାହିଁ କିମ୍ବା OTP/PIN ଦିଅନ୍ତୁ ନାହିଁ। କଲ ବନ୍ଦ କରନ୍ତୁ, ବିଶ୍ୱସ୍ତ ଲୋକଙ୍କୁ କୁହନ୍ତୁ ଏବଂ ତୁରନ୍ତ 1930 କଲ କରନ୍ତୁ।",
+    "ml": "ഡിജിറ്റൽ അറസ്റ്റ് ഒരു തട്ടിപ്പാണ്. പണം അയക്കരുത്, OTP/PIN പങ്കിടരുത്. കോൾ അവസാനിപ്പിച്ച് വിശ്വസ്തരായ ഒരാളെ അറിയിച്ച് ഉടൻ 1930-ൽ വിളിക്കുക.",
+    "pa": "ਡਿਜ਼ਿਟਲ ਗ੍ਰਿਫ਼ਤਾਰੀ ਧੋਖਾਧੜੀ ਹੈ। ਪੈਸੇ ਟ੍ਰਾਂਸਫਰ ਨਾ ਕਰੋ ਅਤੇ OTP/PIN ਸਾਂਝਾ ਨਾ ਕਰੋ। ਕਾਲ ਬੰਦ ਕਰੋ, ਕਿਸੇ ਭਰੋਸੇਯੋਗ ਵਿਅਕਤੀ ਨੂੰ ਦੱਸੋ ਅਤੇ ਤੁਰੰਤ 1930 'ਤੇ ਕਾਲ ਕਰੋ।",
+}
+
+
+def reply(message: str, session_id: str | None = None, language: str = "auto") -> dict:
     """Main chat handler — uses RAG pipeline when available."""
+    language = language.lower().strip()
+    # The RAG corpus is currently English/Hinglish.  For an explicitly chosen
+    # regional language, return the safety-first localised flow instead of
+    # pretending an English-only model has translated it reliably.
+    if language in SUPPORTED_LANGUAGES and language not in ("auto", "en"):
+        return _fallback_reply(message, language=language)
     try:
         from app.services.kavach_rag import get_rag
         rag = get_rag()
         return rag.chat(user_message=message, session_id=session_id)
     except Exception as exc:
         logger.warning("RAG pipeline unavailable (%s), using fallback", exc)
-        return _fallback_reply(message)
+        return _fallback_reply(message, language=language)
 
 
 # ---------------------------------------------------------------------------
@@ -45,17 +72,16 @@ def _detect_intents(message: str) -> list[str]:
     return [intent for intent, keys in _INTENTS.items() if any(k in lowered for k in keys)]
 
 
-def _fallback_reply(message: str) -> dict:
+def _fallback_reply(message: str, language: str = "auto") -> dict:
     intents = _detect_intents(message)
     if not intents:
         intents = ["fallback"]
 
-    if "emergency" in intents:
+    selected_language = language if language in SUPPORTED_LANGUAGES else "en"
+    if "emergency" in intents or (selected_language != "en" and any(token in message.lower() for token in ("arrest", "fraud", "scam", "otp", "upi"))):
         text = (
-            "If you are being threatened with 'digital arrest', do NOT transfer money — "
-            "it is 100% a scam. No government agency (CBI, ED, Police) ever arrests "
-            "anyone over a video call. Hang up immediately and call 1930 (Cyber Crime "
-            "Helpline) right now."
+            _EMERGENCY_ADVISORIES[selected_language] + " "
+            + ("No government agency arrests anyone over a video call." if selected_language == "en" else "")
         )
         risk = "danger"
         actions = ["Call 1930 Now", "File Complaint Online", "Report to Police"]
@@ -105,6 +131,8 @@ def _fallback_reply(message: str) -> dict:
         "quickActions": actions,
         "riskLevel": risk,
         "sources": [],
+        "language": selected_language,
+        "supportedLanguages": SUPPORTED_LANGUAGES,
     }
 
 

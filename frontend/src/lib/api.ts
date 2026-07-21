@@ -123,6 +123,35 @@ export const submitScamReport = (payload: {
 }) =>
   api.post<ApiResponse<unknown>>("/api/v1/sentinel/report", payload).then((r) => r.data);
 
+export type LiveIntelStatus = {
+  webhookContract: string;
+  signatureRequired: boolean;
+  secretConfigured: boolean;
+  supportedSources: string[];
+  ledger: { valid: boolean; recordCount: number; lastHash?: string };
+  deploymentNote: string;
+};
+
+export type LiveIntelResult = {
+  event_id: string;
+  threat_score: number;
+  verdict: string;
+  confidence: number;
+  signal_breakdown: Record<string, number>;
+  reasons: string[];
+  recommended_actions: string[];
+  evidence_id: string;
+  evidence_hash: string;
+  alert_created: boolean;
+  integration_trust: string;
+};
+
+export const getLiveIntelStatus = () =>
+  api.get<ApiResponse<LiveIntelStatus>>("/api/v1/sentinel/integrations/status").then((r) => r.data);
+
+export const ingestLiveIntelDemo = (payload: Record<string, unknown>) =>
+  api.post<ApiResponse<LiveIntelResult>>("/api/v1/sentinel/ingest/live", payload).then((r) => r.data);
+
 // ── NETRA ─────────────────────────────────────────────────────────────────────
 export const scanCurrency = (file: File, denomination?: string) => {
   const form = new FormData();

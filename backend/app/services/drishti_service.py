@@ -1,14 +1,9 @@
-"""DRISHTI — Geospatial Crime Pattern Intelligence (rich mock data).
+"""DRISHTI — geospatial public-safety intelligence.
 
-Provides realistic incident data across 12 major Indian cities with full
-hotspot profiles, prediction zones, patrol routes, and district comparison
-statistics. All data is mocked for the hackathon prototype.
-
-Real implementation would ingest:
-  - National Cyber Crime Reporting Portal (NCRP) complaint feeds
-  - RBI counterfeit seizure geotagged reports
-  - Telecom CDR anomaly flags from SENTINEL
-  - FIR geolocation data from State Police systems
+Historical scenario data is retained only as clearly separated development
+baseline data. Operational events arrive through the authorised agency-feed
+gateway or other signed module integrations; random incidents are never
+emitted as a live operational event.
 """
 from __future__ import annotations
 
@@ -364,33 +359,13 @@ _DISTRICT_STATS: list[DistrictStat] = [
                  criticalCount=4, changePercent=+4.2, riskRank=10, dominantType="upi"),
 ]
 
-# ── Random incident type pool for live stream ─────────────────────────────────
-_LIVE_POOL = [
-    ("Digital Arrest Scam", "scam", "critical"),
-    ("UPI Fraud Attempt", "upi", "high"),
-    ("Counterfeit ₹500 Detected", "counterfeit", "high"),
-    ("Investment Scam SMS", "scam", "medium"),
-    ("Mule Account Activity", "network", "medium"),
-    ("CBI Impersonation Call", "scam", "critical"),
-    ("Fake KYC Request", "upi", "medium"),
-    ("Deepfake Video Scam", "scam", "high"),
-]
-_LIVE_CITIES = [
-    ("Mumbai", "Maharashtra", 19.0760, 72.8777),
-    ("Delhi", "Delhi", 28.6139, 77.2090),
-    ("Bangalore", "Karnataka", 12.9716, 77.5946),
-    ("Hyderabad", "Telangana", 17.3850, 78.4867),
-    ("Chennai", "Tamil Nadu", 13.0827, 80.2707),
-    ("Pune", "Maharashtra", 18.5204, 73.8567),
-]
-
-
 # ── Service functions ─────────────────────────────────────────────────────────
 
 def get_stats() -> dict:
+    live_critical = sum(1 for incident in _LIVE_INTELLIGENCE_INCIDENTS if incident.severity == "critical")
     return DrishtiStats(
-        totalToday=247,
-        criticalZones=8,
+        totalToday=247 + len(_LIVE_INTELLIGENCE_INCIDENTS),
+        criticalZones=8 + live_critical,
         activePatrols=34,
         avgResponseMin=4.2,
         hotspotCount=len(_HOTSPOTS_DETAILED),
@@ -416,21 +391,27 @@ def get_hotspots_detailed(type_filter: str | None = None) -> list[dict]:
 
 def get_heatmap() -> list[dict]:
     sb = _get_supabase()
+    stored: list[dict] = []
     if sb:
         try:
             res = sb.table(_TBL_INCIDENTS).select("lat,lng,type,severity").execute()
-            return [
+            stored = [
                 {"lat": r["lat"], "lng": r["lng"], "weight": 1.0, "type": r["type"], "severity": r["severity"]}
                 for r in res.data
             ]
         except Exception as e:
             logger.warning("Failed to query heatmap from Supabase: %s", e)
-
+    if not stored:
+        stored = [
+            {"lat": inc.lat, "lng": inc.lng, "weight": 1.0, "type": inc.type,
+             "severity": inc.severity}
+            for inc in _INCIDENTS
+        ]
     return [
         {"lat": inc.lat, "lng": inc.lng, "weight": 1.0, "type": inc.type,
-         "severity": inc.severity}
-        for inc in _INCIDENTS
-    ]
+         "severity": inc.severity, "sourceModule": inc.sourceModule}
+        for inc in _LIVE_INTELLIGENCE_INCIDENTS
+    ] + stored
 
 
 def get_incidents(
@@ -440,6 +421,18 @@ def get_incidents(
 ) -> list[dict]:
     cutoff = datetime.utcnow() - timedelta(hours=hours)
     all_incidents: list[dict] = []
+
+    # 0. Authorised cross-module feed, explicitly separate from synthetic demo
+    # data and citizen reports but included in operational map/heatmap queries.
+    for incident in _LIVE_INTELLIGENCE_INCIDENTS:
+        if severity and incident.severity != severity:
+            continue
+        if type_filter and type_filter != "all" and incident.type != type_filter:
+            continue
+        item = incident.model_dump()
+        item["isCitizenReport"] = False
+        item["isLiveIntelligence"] = True
+        all_incidents.append(item)
 
     # 1. Include in-memory citizen reports
     for r in _CITIZEN_REPORTS:
@@ -564,21 +557,45 @@ def get_district_stats() -> list[dict]:
     return [d.model_dump() for d in _DISTRICT_STATS]
 
 
-def stream_incident() -> dict:
-    """Generate a single random live incident for WebSocket push."""
-    desc, inc_type, severity = random.choice(_LIVE_POOL)
-    city, state, lat, lng = random.choice(_LIVE_CITIES)
-    lat += random.uniform(-0.05, 0.05)
-    lng += random.uniform(-0.05, 0.05)
-    return Incident(
-        id=f"LIVE-{random.randint(10000, 99999)}",
-        lat=lat, lng=lng,
-        type=inc_type, severity=severity,
-        timestamp=datetime.utcnow().isoformat(),
-        district=city, state=state,
-        description=desc,
-        sourceModule="SENTINEL" if inc_type == "scam" else "DRISHTI",
-    ).model_dump()
+def stream_incident() -> dict | None:
+    """Return the newest authorised event; never fabricate an operational incident."""
+    events = get_live_incidents(limit=1)
+    return events[0] if events else None
+
+
+# ── Authorised cross-module intelligence feed ───────────────────────────────
+# Kept independently from demo-generated data so command-centre clients can
+# distinguish actual partner/citizen signals from scenarios and baselines.
+_LIVE_INTELLIGENCE_INCIDENTS: list[Incident] = []
+_LIVE_INTELLIGENCE_METADATA: dict[str, dict] = {}
+
+
+def ingest_intelligence_incident(signal: dict) -> dict:
+    """Add an authorised SENTINEL/NETRA/JAAL event to the live map feed."""
+    import uuid
+    district = signal.get("district") or "India"
+    state = signal.get("state") or "India"
+    lat, lng = _resolve_coords(district, state, signal.get("lat"), signal.get("lng"))
+    event_type = signal.get("type", "scam")
+    if event_type not in ("scam", "counterfeit", "upi", "network"):
+        event_type = "scam"
+    incident = Incident(
+        id=f"LI-{uuid.uuid4().hex[:10].upper()}", lat=lat, lng=lng, type=event_type,
+        severity=signal.get("severity", "medium"), timestamp=signal.get("timestamp") or datetime.utcnow().isoformat(),
+        district=district, state=state, description=signal.get("description", "Live intelligence event"),
+        sourceModule=signal.get("sourceModule") or "SENTINEL_LIVE",
+    )
+    _LIVE_INTELLIGENCE_INCIDENTS.insert(0, incident)
+    _LIVE_INTELLIGENCE_METADATA[incident.id] = {
+        "eventId": signal.get("eventId"), "evidenceRef": signal.get("evidenceRef"), "riskScore": signal.get("score"),
+    }
+    del _LIVE_INTELLIGENCE_INCIDENTS[100:]
+    return {**incident.model_dump(), **_LIVE_INTELLIGENCE_METADATA[incident.id]}
+
+
+def get_live_incidents(limit: int = 50) -> list[dict]:
+    """Return only authorised, non-simulated cross-module events."""
+    return [{**incident.model_dump(), **_LIVE_INTELLIGENCE_METADATA.get(incident.id, {})} for incident in _LIVE_INTELLIGENCE_INCIDENTS[:limit]]
 
 
 # ── In-memory citizen report store ───────────────────────────────────────────

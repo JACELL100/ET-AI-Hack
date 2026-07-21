@@ -15,12 +15,67 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query
 
-from app.models.schemas import ok, CitizenReportRequest
-from app.services import drishti_service
+from app.models.schemas import AgencyFeedIncidentRequest, ok, CitizenReportRequest
+from app.services import drishti_service, jaal_service
+from app.services import agency_feed_service
+from app.websockets.manager import manager
 
 router = APIRouter(prefix="/drishti", tags=["drishti"])
+
+
+@router.post("/feeds/agency")
+def ingest_agency_feed(
+    payload: AgencyFeedIncidentRequest,
+    background_tasks: BackgroundTasks,
+    x_raksha_timestamp: str | None = Header(default=None),
+    x_raksha_signature: str | None = Header(default=None),
+):
+    """Ingest a signed NCRP/NCRB/state/bank incident and fan it into operations."""
+    raw = payload.model_dump(mode="json")
+    try:
+        trust = agency_feed_service.verify_delivery(raw, x_raksha_timestamp, x_raksha_signature)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    stored = agency_feed_service.ingest(raw, trust=trust)
+    if stored["duplicate"]:
+        return ok({"feed": stored, "incident": None, "jaal": None})
+    incident = drishti_service.ingest_intelligence_incident({
+        "eventId": f"{payload.source}:{payload.externalId}", "type": payload.type, "severity": payload.severity,
+        "district": payload.district, "state": payload.state, "lat": payload.latitude, "lng": payload.longitude,
+        "timestamp": payload.occurredAt, "description": payload.description, "evidenceRef": stored["evidenceId"],
+        "sourceModule": payload.source,
+    })
+    jaal_result = None
+    if payload.indicators:
+        jaal_result = jaal_service.ingest_module_signal(
+            f"{payload.source}_FEED", payload.indicators[0],
+            f"Authorised {payload.source} feed event {payload.externalId}: {payload.description}",
+            entity_type="phone" if payload.type == "scam" else "account", risk_score={"critical": .95, "high": .8, "medium": .6, "low": .4}[payload.severity],
+        )
+    background_tasks.add_task(
+        manager.broadcast,
+        {"event": "agency_feed", "module": "drishti", "payload": {"feed": stored, "incident": incident, "trust": trust}},
+        "ws:drishti",
+    )
+    if jaal_result:
+        background_tasks.add_task(
+            manager.broadcast,
+            {"event": "agency_feed", "module": "jaal", "payload": jaal_result},
+            "ws:jaal",
+        )
+    return ok({"feed": stored, "incident": incident, "jaal": jaal_result, "trust": trust})
+
+
+@router.get("/feeds/status")
+def agency_feed_status():
+    return ok(agency_feed_service.status())
+
+
+@router.get("/feeds/recent")
+def recent_agency_feeds(limit: Annotated[int, Query(ge=1, le=100)] = 50):
+    return ok(agency_feed_service.recent(limit))
 
 
 @router.get("/stats")
@@ -67,6 +122,12 @@ def incidents(
         severity=severity, type_filter=type, hours=hours
     )
     return ok(data, meta={"count": len(data), "hours": hours})
+
+
+@router.get("/live")
+def live_incidents(limit: Annotated[int, Query(ge=1, le=100)] = 50):
+    """Authorised live intelligence feed; excludes demo/random incidents."""
+    return ok(drishti_service.get_live_incidents(limit=limit))
 
 
 @router.get("/predictions/{timeframe}")

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.models.schemas import (
     JaalCitizenReportRequest,
@@ -64,8 +64,26 @@ def trace(req: JaalTraceRequest):
 
 @router.post("/evidence-package")
 def evidence_package(req: JaalEvidencePackageRequest):
-    """Create a hash-verified, exportable investigation evidence package."""
+    """Create a durable, hash-verified investigation evidence package."""
     return ok(jaal_service.generate_evidence_package(req.model_dump()))
+
+
+@router.get("/evidence-package/{package_id}")
+def get_evidence_package(package_id: str):
+    """Retrieve a persisted evidence package after process restart."""
+    package = jaal_service.get_evidence_package(package_id)
+    if package is None:
+        raise HTTPException(status_code=404, detail="Evidence package not found")
+    return ok(package)
+
+
+@router.get("/evidence-package/{package_id}/verify")
+def verify_evidence_package(package_id: str):
+    """Verify package SHA-256, persisted contents, and its Ed25519 ledger link."""
+    verification = jaal_service.verify_evidence_package(package_id)
+    if verification.get("reason") == "package not found":
+        raise HTTPException(status_code=404, detail="Evidence package not found")
+    return ok(verification)
 
 
 @router.get("/graph/{cluster_id}")

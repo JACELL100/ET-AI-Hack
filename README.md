@@ -78,6 +78,22 @@ RAKSHA AI addresses this by converging financial transaction intelligence, commu
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Live intelligence upgrades
+
+SENTINEL accepts authorised, signed telecom, video-integrity and payment-risk
+metadata at `POST /api/v1/sentinel/ingest/live`. It fuses caller-ID attestation,
+spoofing and velocity signals, deepfake/virtual-camera metadata, payment mule
+risk and transcript analysis into an explainable result. High-confidence events
+create an alert plus separately reviewable JAAL and DRISHTI leads, and are
+recorded in a privacy-minimised SHA-256 hash chain signed with Ed25519. DRISHTI
+also accepts signed, deduplicated NCRP/NCRB/State Police/bank/FIU/telecom feed
+contracts, and JAAL preserves evidence packages in durable SQLite storage with
+independent package-and-ledger verification.
+
+See the [architecture](docs/ARCHITECTURE.md), [partner-integration guide](docs/LIVE_INTELLIGENCE_INTEGRATION.md),
+[evaluation protocol](docs/EVALUATION_PROTOCOL.md), and the NETRA training-data
+contract at [backend/app/data/netra_datasets/README.md](backend/app/data/netra_datasets/README.md).
+
 ### API Response Envelope
 
 Every endpoint returns the same shape:
@@ -482,9 +498,11 @@ interface KavachChatResponse {
 
 ## Running in Production
 
-The current backend is a mock prototype. For a production deployment:
+The project includes development baselines and production-gated integration
+paths. For a production deployment:
 
-1. Replace service-layer mock logic with real AI models (see roadmap below).
+1. Supply authorised, representative training/evaluation data and register only
+   validated models. NETRA deliberately refuses a verdict without one.
 2. Set `FASTAPI_DEBUG=false` and generate a strong `FASTAPI_SECRET_KEY`.
 3. Update `CORS_ORIGINS` to your production frontend domain.
 4. Run with multiple Uvicorn workers behind a reverse proxy (e.g. Nginx or an ALB):
@@ -507,10 +525,10 @@ npm run start
 
 | Module | Prototype (current) | Production AI target |
 |---|---|---|
-| SENTINEL | Keyword scoring on 20 scam terms | IndicBERT / Faster-Whisper fine-tuned on scam call corpora; TRAI number reputation API |
-| NETRA | Deterministic hash-based feature mock | EfficientNet-B4 / YOLOv11 trained on RBI-verified FICN dataset |
-| JAAL | Pre-seeded static graph | Graph Neural Network (GraphSAGE) on live transaction + call metadata; FIU-IND integration |
-| DRISHTI | 5 hardcoded hotspot points | Real-time NCRP complaint feed; Mapbox clustering; patrol optimisation model |
+| SENTINEL | Signed telecom/video/payment metadata fusion plus content classification | IndicBERT / Faster-Whisper fine-tuned on authorised scam corpora; source-specific number reputation feeds |
+| NETRA | Transparent, manifest-trained baseline registry with hold-out gates; no model ships until authorised FICN data is supplied | Vetted CNN/feature-localisation model trained and benchmarked on RBI/agency-verified FICN data |
+| JAAL | Seed graph plus live module/agency signal ingestion; persistent signed evidence packages | Graph Neural Network (GraphSAGE) on live transaction + call metadata; FIU-IND integration |
+| DRISHTI | Historical development baseline plus signed NCRP/NCRB/state/bank/FIU/telecom ingest | Approved production feeds, clustering and patrol optimisation model |
 | KAVACH | Rule-based intent matching | Rasa NLU or LLM-backed agent; 12-language support via IndicTrans2 |
 | WebSocket | In-process broadcast registry | Redis pub/sub backed; connect to live AI inference pipeline events |
 

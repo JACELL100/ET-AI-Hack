@@ -22,6 +22,7 @@ async def chat(payload: KavachChatRequest):
     result = kavach_service.reply(
         message=payload.message.strip(),
         session_id=payload.sessionId,
+        language=payload.language,
     )
     return ok(result)
 

@@ -45,6 +45,31 @@ class Settings(BaseSettings):
     sentinel_threat_threshold_medium: float = 40.0
     sentinel_similarity_threshold: float = 0.75
 
+    # Trusted live intelligence ingest.  Telecom, video-conferencing, payment
+    # and bank partners sign webhook bodies with this shared secret.  Keep it
+    # empty only for an explicitly labelled local demo environment.
+    integration_hmac_secret: str = ""
+    integration_require_signature: bool = False
+    integration_max_event_age_seconds: int = 300
+    evidence_ledger_path: str = "data_runtime/evidence_ledger.sqlite3"
+    evidence_package_db_path: str = "data_runtime/evidence_packages.sqlite3"
+    evidence_signing_private_key_path: str = "data_runtime/evidence_signing_private.pem"
+    evidence_signing_public_key_path: str = "data_runtime/evidence_signing_public.pem"
+
+    # NCRP/NCRB/state agency feed gateway.  Each authorised producer should
+    # receive a distinct secret at the API gateway in production.
+    agency_feed_hmac_secret: str = ""
+    agency_feed_require_signature: bool = False
+    agency_feed_max_event_age_seconds: int = 300
+    agency_feed_db_path: str = "data_runtime/agency_feeds.sqlite3"
+
+    # NETRA model registry.  A model is usable only when its model card and
+    # hold-out metrics are present; no synthetic fallback verdict is allowed.
+    netra_model_dir: str = "data/netra/models"
+    netra_dataset_dir: str = "data/netra/datasets"
+    netra_min_validation_accuracy: float = 0.90
+    netra_max_false_positive_rate: float = 0.05
+
     # NumVerify — Phone number carrier & owner lookup (numverify.com)
     numverify_api_key: str = ""          # Free: 1000 req/month — https://numverify.com
     numverify_base_url: str = "http://apilayer.net/api/validate"

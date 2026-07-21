@@ -13,18 +13,24 @@ import logging
 from pathlib import Path
 import re
 
-from fastapi import APIRouter, File, Path as PathParam, UploadFile, Query
+from fastapi import APIRouter, BackgroundTasks, File, Header, HTTPException, Path as PathParam, UploadFile, Query
 from fastapi.responses import FileResponse
 
 from app.models.schemas import (
     SentinelTextRequest,
+    SentinelLiveSignalRequest,
+    SentinelEvaluationRequest,
     AuthkeyAlertRequest,
     SentinelReportRequest,
     ok,
     fail,
 )
 from app.services import jaal_service, sentinel_service
+from app.services.evidence_ledger import get_evidence, public_key_bundle, verify_ledger
+from app.services.evaluation_service import evaluate_text_samples
+from app.services.sentinel_intelligence import ingest_live_signal, integration_status, integration_trust
 from app.services.simulation_scenarios import list_scenarios, get_scenario_by_id
+from app.websockets.manager import manager
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,69 @@ def analyse_text(payload: SentinelTextRequest):
             entity_type="phone" if phone else "website", risk_score=score / 100,
         )
     return ok(result)
+
+
+# ── Signed partner intelligence ingestion ──────────────────────────────────
+
+@router.post("/ingest/live")
+def ingest_live(
+    payload: SentinelLiveSignalRequest,
+    background_tasks: BackgroundTasks,
+    x_raksha_timestamp: str | None = Header(default=None),
+    x_raksha_signature: str | None = Header(default=None),
+):
+    """Ingest an authorised telecom/video/payment signal in real time.
+
+    Partners send normalised metadata only and sign the request with
+    ``HMAC-SHA256(timestamp + '.' + canonical-json)``.  A local unsigned demo
+    remains visibly labelled as such; production can require the signature.
+    """
+    try:
+        trust = integration_trust(payload.model_dump(mode="json"), x_raksha_timestamp, x_raksha_signature)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    result = ingest_live_signal(payload, trust=trust)
+    # Keep API latency predictable while active command-centre sessions receive
+    # the same event on their existing module-specific WebSocket subscriptions.
+    background_tasks.add_task(manager.broadcast, {"event": "live_intelligence", "module": "sentinel", "payload": result}, "ws:sentinel")
+    background_tasks.add_task(manager.broadcast, {"event": "live_intelligence", "module": "drishti", "payload": result}, "ws:drishti")
+    background_tasks.add_task(manager.broadcast, {"event": "live_intelligence", "module": "jaal", "payload": result}, "ws:jaal")
+    return ok(result)
+
+
+@router.get("/integrations/status")
+def live_integration_status():
+    """Expose integration readiness and evidence-ledger health to operators."""
+    return ok(integration_status())
+
+
+@router.get("/evidence/verify")
+def verify_evidence_ledger():
+    """Verify the local evidence hash chain without returning sensitive data."""
+    return ok(verify_ledger())
+
+
+@router.get("/evidence/public-key")
+def evidence_public_key():
+    """Public Ed25519 verifier key for independent integrity checks."""
+    return ok(public_key_bundle())
+
+
+@router.get("/evidence/{record_id}")
+def get_evidence_record(record_id: str):
+    """Export one privacy-minimised, signed record for offline verification."""
+    record = get_evidence(record_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Evidence record not found")
+    return ok(record)
+
+
+@router.post("/evaluate")
+def evaluate_detection(payload: SentinelEvaluationRequest):
+    """Run a reproducible precision/recall/FPR evaluation on labelled hold-out text."""
+    return ok(evaluate_text_samples(
+        [sample.model_dump() for sample in payload.samples], sentinel_service.analyse_text, payload.scamThreshold,
+    ))
 
 
 # ── Audio Analysis ─────────────────────────────────────────────────────────

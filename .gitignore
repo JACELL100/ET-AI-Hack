@@ -68,6 +68,9 @@ dmypy.json
 backend/.env
 frontend/.env.local
 
+# Local, privacy-minimised runtime evidence ledger (never commit).
+backend/data_runtime/
+
 # ========================
 # OS & Editor
 # ========================

@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Shield, Eye, Network, Map, LayoutDashboard,
+  Shield, Eye, Network, Map, LayoutDashboard, Radio,
   Sun, Moon, LogOut
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -13,6 +13,7 @@ import { useAuth } from "@/components/providers/AuthContext";
 export const adminNavItems = [
   { label: "Admin Panel", href: "/admin", icon: LayoutDashboard },
   { label: "SENTINEL", href: "/admin/sentinel", icon: Shield, color: "#E63A1E" },
+  { label: "Live Intel", href: "/admin/live-intelligence", icon: Radio, color: "#06B6D4" },
   { label: "NETRA", href: "/admin/netra", icon: Eye, color: "#10B981" },
   { label: "JAAL", href: "/admin/jaal", icon: Network, color: "#818CF8" },
   { label: "DRISHTI", href: "/admin/drishti", icon: Map, color: "#F59E0B" },

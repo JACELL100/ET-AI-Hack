@@ -38,6 +38,8 @@ import warnings
 from datetime import datetime, timezone
 from typing import Any
 
+from app.services import netra_model_service
+
 logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", message=".*quantize_per_tensor.*")
@@ -52,7 +54,7 @@ except ImportError:
     cv2 = None          # type: ignore[assignment]
     np = None           # type: ignore[assignment]
     _CV2_AVAILABLE = False
-    logger.warning("opencv-python not installed — NETRA running in stub mode")
+    logger.warning("opencv-python not installed — NETRA requires a registered trained model")
 
 # ── Tesseract (sole OCR engine) ───────────────────────────────────────────────
 
@@ -1484,39 +1486,24 @@ def _persist_scan(scan_id: str, result: dict) -> None:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Stub pipeline (OpenCV unavailable)
+# Registered-model-only pipeline (OpenCV unavailable)
 # ═════════════════════════════════════════════════════════════════════════════
 
-def _stub_pipeline(image_bytes: bytes, denomination_hint: str | None) -> dict:
-    import hashlib
-    rng          = random.Random(int(hashlib.sha256(image_bytes[:512]).hexdigest()[:12], 16))
-    denomination = denomination_hint if denomination_hint in _FEATURES_BY_DENOM \
-                   else rng.choice(list(_SUPPORTED_DENOMS))
-    feature_names = _FEATURES_BY_DENOM.get(denomination, _FEATURES_BY_DENOM["unknown"])
-    feature_details: list[dict] = []
-    for name in feature_names:
-        conf     = round(rng.uniform(0.40, 0.80), 4)
-        detected = conf > 0.52
-        bbox     = _FEATURE_BBOX.get(name, {"x": 0.1, "y": 0.1, "w": 0.8, "h": 0.8})
-        feature_details.append({
-            "name": name, "status": "pass" if detected else ("warn" if conf > 0.38 else "fail"),
-            "confidence": conf, "bounding_box": dict(bbox),
-            "detected": detected, "detector": "stub",
-        })
-    sharpness, edge_density, brightness = rng.uniform(80, 450), rng.uniform(0.03, 0.12), rng.uniform(110, 165)
-    quality_score = _compute_quality_score(sharpness, edge_density, brightness)
-    print_score   = rng.uniform(40.0, 80.0)
-    serial_info   = _build_serial_result(None, denomination, ocr_detected=False)
-    overall_score, verdict, confidence = _compute_holistic_score(
-        feature_details, quality_score, serial_info, print_score)
-    return _build_result_dict(
-        scan_id=str(uuid.uuid4()),
-        denomination=(denomination, round(rng.uniform(60.0, 88.0), 1)),
-        feature_details=feature_details, serial_info=serial_info,
-        overall_score=overall_score, verdict=verdict, confidence=confidence,
-        quality_metrics=(sharpness, edge_density, brightness),
-        processing_time_ms=rng.randint(60, 200),
-    )
+def _model_only_pipeline(image_bytes: bytes, denomination_hint: str | None) -> dict:
+    """Use only a release-approved trained classifier; never invent features."""
+    inference = netra_model_service.classify(image_bytes)
+    counterfeit_probability = float(inference["counterfeitProbability"])
+    return {
+        "scan_id": str(uuid.uuid4()), "verdict": inference["verdict"], "confidence": inference["confidence"],
+        "overall_score": round((1 - counterfeit_probability) * 100, 2),
+        "denomination": denomination_hint or "unknown", "denomination_confidence": 0.0,
+        "features": [{"name": "Validated FICN classifier", "status": "warn", "confidence": inference["confidence"],
+                      "detected": True, "detector": "registered-model", "description": "Model-only result; perform physical security-feature review."}],
+        "serial_number": _build_serial_result(None, denomination_hint or "unknown", ocr_detected=False),
+        "processing_time_ms": 0, "pipeline_version": "NETRA-ML-registered-model", "image_quality": None,
+        "counterfeit_probability": counterfeit_probability, "ml_classifier": inference["model"],
+        "requires_manual_security_feature_review": True,
+    }
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1528,7 +1515,7 @@ def scan_currency_image(image_bytes: bytes, denomination_hint: str | None = None
     t0 = time.perf_counter()
 
     if not _CV2_AVAILABLE:
-        result = _stub_pipeline(image_bytes, denomination_hint)
+        result = _model_only_pipeline(image_bytes, denomination_hint)
         _persist_scan(result["scan_id"], result)
         return result
 
@@ -1595,6 +1582,23 @@ def scan_currency_image(image_bytes: bytes, denomination_hint: str | None = None
         processing_time_ms=processing_time_ms,
         ocr_reason=ocr_reason, banknote_score=note_score,
     )
+
+    # A registered classifier is an independent signal.  It can elevate a
+    # strong counterfeit finding, but disagreement is routed to manual review
+    # instead of overwriting physical-security evidence with a black-box score.
+    model_state = netra_model_service.status()
+    if model_state.get("ready"):
+        inference = netra_model_service.classify(image_bytes)
+        result["ml_classifier"] = inference["model"]
+        result["counterfeit_probability"] = inference["counterfeitProbability"]
+        model_verdict = inference["verdict"]
+        if model_verdict != result["verdict"]:
+            result["verdict"] = "SUSPICIOUS"
+            result["requires_manual_security_feature_review"] = True
+            result["model_disagreement"] = True
+        elif model_verdict == "COUNTERFEIT" and float(inference["counterfeitProbability"]) >= 0.85:
+            result["confidence"] = max(float(result["confidence"]), float(inference["confidence"]))
+        result["pipeline_version"] = f"{PIPELINE_VERSION}+registered-model"
 
     # Stage 8: Persist
     _persist_scan(scan_id, result)

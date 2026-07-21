@@ -10,7 +10,8 @@ frontend/src/types/index.ts so the link works without a translation layer.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -172,6 +173,100 @@ class SentinelReportRequest(BaseModel):
     evidence_text: Optional[str] = None
 
 
+# ── SENTINEL live intelligence ingestion ───────────────────────────────────
+class TelecomMetadata(BaseModel):
+    """Privacy-minimised CDR/telecom signals supplied by an authorised partner.
+
+    No call content is required.  The caller/callee values are pseudonymised in
+    the evidence ledger and may be masked by upstream systems before delivery.
+    """
+    provider: str = Field(min_length=2, max_length=80)
+    caller: str = Field(min_length=3, max_length=160)
+    callee: Optional[str] = Field(default=None, max_length=160)
+    asserted_caller_id: Optional[str] = Field(default=None, max_length=160)
+    call_id: Optional[str] = Field(default=None, max_length=160)
+    call_started_at: Optional[str] = Field(default=None, max_length=64)
+    duration_seconds: int = Field(default=0, ge=0, le=172800)
+    call_attempts_24h: int = Field(default=0, ge=0, le=10000)
+    unique_callees_24h: int = Field(default=0, ge=0, le=100000)
+    line_type: Literal["mobile", "landline", "voip", "unknown"] = "unknown"
+    stir_shaken_attestation: Literal["A", "B", "C", "failed", "unavailable"] = "unavailable"
+    cli_verified: Optional[bool] = None
+    sim_age_days: Optional[int] = Field(default=None, ge=0, le=20000)
+    number_ported_days: Optional[int] = Field(default=None, ge=0, le=20000)
+    forwarding_hops: int = Field(default=0, ge=0, le=30)
+    telecom_reputation_score: Optional[float] = Field(default=None, ge=0, le=1)
+    district: Optional[str] = Field(default=None, max_length=100)
+    state: Optional[str] = Field(default=None, max_length=100)
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+
+
+class VideoMetadata(BaseModel):
+    """Signals from an authorised video platform or on-device verifier."""
+    provider: str = Field(min_length=2, max_length=80)
+    meeting_id: Optional[str] = Field(default=None, max_length=160)
+    virtual_camera_detected: bool = False
+    screen_share_active: bool = False
+    face_count: Optional[int] = Field(default=None, ge=0, le=20)
+    audio_video_desync_ms: Optional[int] = Field(default=None, ge=0, le=10000)
+    deepfake_probability: Optional[float] = Field(default=None, ge=0, le=1)
+    identity_claim: Optional[str] = Field(default=None, max_length=120)
+    official_identity_verified: Optional[bool] = None
+    source_model: Optional[str] = Field(default=None, max_length=120)
+    source_evidence_uri: Optional[str] = Field(default=None, max_length=500)
+
+
+class PaymentMetadata(BaseModel):
+    """Optional payment risk signal from a bank/PSP, never card/PIN data."""
+    provider: str = Field(min_length=2, max_length=80)
+    beneficiary: Optional[str] = Field(default=None, max_length=160)
+    amount_inr: Optional[float] = Field(default=None, ge=0, le=1000000000)
+    transaction_count_24h: int = Field(default=0, ge=0, le=100000)
+    mule_risk_score: Optional[float] = Field(default=None, ge=0, le=1)
+    account_age_days: Optional[int] = Field(default=None, ge=0, le=20000)
+    beneficiary_name_mismatch: bool = False
+
+
+class SentinelLiveSignalRequest(BaseModel):
+    """Signed, normalised partner event used for real-time intervention."""
+    event_id: str = Field(default_factory=lambda: f"evt-{uuid4().hex}")
+    occurred_at: Optional[str] = Field(default=None, max_length=64)
+    transcript: Optional[str] = Field(default=None, max_length=20000)
+    language: str = Field(default="auto", max_length=16)
+    telecom: TelecomMetadata
+    video: Optional[VideoMetadata] = None
+    payment: Optional[PaymentMetadata] = None
+    consent_reference: Optional[str] = Field(default=None, max_length=160)
+    case_reference: Optional[str] = Field(default=None, max_length=160)
+
+
+class SentinelLiveSignalResult(BaseModel):
+    event_id: str
+    threat_score: float
+    verdict: str
+    confidence: float
+    signal_breakdown: dict[str, float] = Field(default_factory=dict)
+    reasons: list[str] = Field(default_factory=list)
+    recommended_actions: list[str] = Field(default_factory=list)
+    evidence_id: str
+    evidence_hash: str
+    alert_created: bool = False
+    integration_trust: str = "unverified-local-demo"
+
+
+class EvaluationSample(BaseModel):
+    """One labelled, consented evaluation example; no real citizen PII."""
+    id: str = Field(min_length=1, max_length=160)
+    text: str = Field(min_length=1, max_length=20000)
+    label: Literal["scam", "safe"]
+
+
+class SentinelEvaluationRequest(BaseModel):
+    samples: list[EvaluationSample] = Field(min_length=2, max_length=10000)
+    scamThreshold: float = Field(default=70.0, ge=0, le=100)
+
+
 # ── NETRA ───────────────────────────────────────────────────────────────────
 class SecurityFeature(BaseModel):
     name: str
@@ -190,6 +285,18 @@ class NetraStats(BaseModel):
     totalScans: int
     counterfeits: int
     authentic: int
+
+
+class NetraModelTrainRequest(BaseModel):
+    """Train only from a server-side, approved dataset manifest name."""
+    datasetName: str = Field(pattern=r"^[A-Za-z0-9_-]{3,80}$")
+    modelName: str = Field(default="ficn-linear-v1", pattern=r"^[A-Za-z0-9_-]{3,80}$")
+    epochs: int = Field(default=80, ge=1, le=1000)
+    learningRate: float = Field(default=0.08, gt=0, le=2)
+
+
+class NetraModelEvaluateRequest(BaseModel):
+    datasetName: str = Field(pattern=r"^[A-Za-z0-9_-]{3,80}$")
 
 
 # ── JAAL ────────────────────────────────────────────────────────────────────
@@ -338,10 +445,29 @@ class DrishtiStats(BaseModel):
     totalThisWeek: int
 
 
+class AgencyFeedIncidentRequest(BaseModel):
+    """Normalised incident from an authorised NCRP/NCRB/state/bank feed."""
+    source: Literal["NCRP", "NCRB", "STATE_POLICE", "BANK_FICN", "FIU_IND", "TELECOM_PARTNER"]
+    externalId: str = Field(min_length=3, max_length=160)
+    occurredAt: str = Field(min_length=10, max_length=64)
+    type: Literal["scam", "counterfeit", "upi", "network"]
+    severity: Literal["critical", "high", "medium", "low"]
+    district: str = Field(min_length=2, max_length=100)
+    state: str = Field(min_length=2, max_length=100)
+    description: str = Field(min_length=8, max_length=4000)
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    indicators: list[str] = Field(default_factory=list, max_length=30)
+    evidenceReference: Optional[str] = Field(default=None, max_length=300)
+    legalBasisReference: Optional[str] = Field(default=None, max_length=200)
+    dataClassification: Literal["restricted", "confidential", "internal"] = "restricted"
+
+
 # ── KAVACH ──────────────────────────────────────────────────────────────────
 class KavachChatRequest(BaseModel):
     message: str
     sessionId: Optional[str] = None
+    language: str = Field(default="auto", max_length=12, description="ISO 639-1 language code or auto")
 
 
 class KavachChatResponse(BaseModel):
