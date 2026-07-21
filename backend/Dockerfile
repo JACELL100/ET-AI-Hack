@@ -18,6 +18,6 @@ COPY . .
 
 RUN mkdir -p data_runtime
 
-EXPOSE 8000
+EXPOSE 10000
 
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --timeout-keep-alive 120"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --timeout-keep-alive 120"]
