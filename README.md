@@ -1,219 +1,168 @@
 # RAKSHA AI
 
-> AI-Powered Digital Public Safety Intelligence Platform
+> AI-powered digital public safety intelligence platform for scam disruption, counterfeit currency detection, fraud-network mapping, geospatial intelligence, and citizen protection.
 
-Built for the **ET AI Hackathon 2.0** (Economic Times × Unstop) — tackling India's rising cybercrime epidemic through proactive, multi-domain AI intelligence.
+Built for the **ET AI Hackathon 2.0** by converging five operational modules into one command-centre experience:
 
----
-
-## The Problem
-
-India recorded **1.14 million cybercrime complaints in 2023** — a 60% jump from 2022. The situation has only worsened:
-
-- **Digital arrest scams** — fraudsters impersonating CBI, ED, or Customs officers trap victims in multi-day video-call hostage situations. MHA reported over **₹1,776 crore** defrauded in just the first nine months of 2024.
-- **Counterfeit currency** — RBI's 2025 Annual Report flagged record FICN (Fake Indian Currency Notes) seizures. High-denomination ₹500 fakes are now quality-printed enough to defeat manual inspection at bank counters.
-- **Fraud networks** — these are not opportunistic crimes. They are industrialised operations run from cross-border fraud compounds using spoofed numbers, AI-generated voices, and fake government portals.
-
-What law enforcement lacks is **intelligence before mass victimisation**, not evidence after the fact.
-
-RAKSHA AI addresses this by converging financial transaction intelligence, communication network analysis, physical currency security, and real-time geospatial coordination — all in one command-centre platform.
+- **SENTINEL** for scam and threat-intent intelligence
+- **NETRA** for counterfeit currency verification
+- **JAAL** for fraud network graph analysis
+- **DRISHTI** for geospatial crime intelligence
+- **KAVACH** for citizen-facing fraud protection
 
 ---
 
-## Solution: Five Modules, One Platform
+## Table Of Contents
 
-```
+- [What This Project Solves](#what-this-project-solves)
+- [Platform At A Glance](#platform-at-a-glance)
+- [System Architecture](#system-architecture)
+- [Repository Layout](#repository-layout)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [API Reference](#api-reference)
+- [Data Contracts](#data-contracts)
+- [Chrome Extension](#chrome-extension)
+- [Production Notes](#production-notes)
+- [Roadmap](#roadmap)
+- [Hackathon Context](#hackathon-context)
+
+---
+
+## What This Project Solves
+
+India’s cybercrime landscape is no longer just opportunistic fraud. It now includes organised digital arrest scams, counterfeit-currency circulation, coordinated mule/account networks, and multi-channel deception campaigns built on spoofed identities, fake portals, and social engineering.
+
+RAKSHA AI is designed to shift teams from **reactive case review** to **proactive threat intelligence**:
+
+- detect scam language and caller risk before a victim is fully manipulated
+- inspect banknote imagery for counterfeit indicators and trained-model verdicts
+- map connected fraud entities into network graphs for investigation
+- ingest live, signed partner signals from telecom, payment, banking, and agency sources
+- preserve evidence chains and audit trails for review and downstream action
+
+The goal is simple: surface risk early, explain it clearly, and keep evidence usable.
+
+---
+
+## Platform At A Glance
+
+```text
 ┌──────────────────────────────────────────────────────────────────────┐
-│                        RAKSHA AI PLATFORM                            │
+│                           RAKSHA AI PLATFORM                         │
 │                                                                      │
-│  SENTINEL  │  NETRA   │    JAAL    │  DRISHTI   │  KAVACH           │
-│  (Scam)    │ (Currency)│ (Network) │  (Geo)     │  (Citizen)        │
-│            │           │           │            │                    │
-│                 Unified Dashboard (Command Centre)                   │
-│                 Real-time WebSocket Alert Feed                       │
+│  SENTINEL  │   NETRA   │    JAAL    │   DRISHTI   │   KAVACH        │
+│  Scams     │ Currency  │  Networks  │ Geospatial  │ Citizen Shield  │
+│                                                                      │
+│                 Unified Dashboard + Real-time WebSocket Feed         │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-| Module | Code Name | What it does |
+| Module | Role | Primary Output |
 |---|---|---|
-| Digital Arrest Scam Detector | **SENTINEL** | Scores call transcripts and messages against scam pattern libraries; checks phone numbers against a risk database; surfaces active scam alerts in real time |
-| Counterfeit Currency Identifier | **NETRA** | Analyses currency note images for microprint, security thread, watermark, colour-shift ink, and 10 other security features; returns a AUTHENTIC / SUSPICIOUS / COUNTERFEIT verdict with per-feature breakdown |
-| Fraud Network Graph Intelligence | **JAAL** | Maps accounts, phone numbers, and persons into a directed risk graph; detects fraud ring communities with risk scores; exposes graph data ready for a force-directed visualisation |
-| Geospatial Crime Intelligence | **DRISHTI** | Returns geotagged hotspot incidents and heatmap weights for live crime map overlays; covers scam, counterfeit, and network threat types by district |
-| Citizen Fraud Shield | **KAVACH** | Rule-based conversational AI that classifies user messages into scam/currency/emergency intents, provides instant safety guidance and the 1930 helpline, and checks phone numbers for risk |
-| Unified Dashboard | _(core)_ | Aggregates live stats (active alerts, scams today, counterfeits found, citizens protected) and a cross-module alert feed with severity classification |
+| SENTINEL | Scam-language and threat-intent intelligence | Threat score, verdict, intents, alerts, live partner fusion |
+| NETRA | Currency authenticity analysis | AUTHENTIC / SUSPICIOUS / COUNTERFEIT with security-feature breakdown |
+| JAAL | Fraud-network graph intelligence | Communities, nodes, edges, risk propagation |
+| DRISHTI | Crime geospatial intelligence | Hotspots, heatmap weights, feed ingest status |
+| KAVACH | Citizen protection assistant | Safety guidance, helpline cues, number checks, intent routing |
+| Dashboard | Cross-module command centre | Combined stats, alert feed, live operational view |
 
 ---
 
-## Architecture
+## System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Browser (Next.js 15, React 19, TypeScript)                             │
-│                                                                         │
-│  Landing Page → Dashboard → SENTINEL / NETRA / JAAL / DRISHTI / KAVACH │
-│                                                                         │
-│  HTTP (axios)  ─────────────────────────────────────────────────────┐  │
-│  WebSocket (socket.io-client) ──────────────────────────────────┐   │  │
-└──────────────────────────────────────────────────────────────────┼───┼──┘
-         Next.js dev proxy rewrites /api/* and /ws/*               │   │
-         to localhost:8000 (no CORS needed in dev)                 │   │
-                                                                   ▼   ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│  FastAPI 0.115 (Uvicorn ASGI, Python 3.11+)                              │
-│                                                                          │
-│  GET  /health                                                            │
-│  GET  /api/v1/dashboard/stats       GET  /api/v1/dashboard/alerts        │
-│  POST /api/v1/sentinel/analyse/text GET  /api/v1/sentinel/number/{phone} │
-│  GET  /api/v1/sentinel/alerts                                            │
-│  GET  /api/v1/netra/scan            GET  /api/v1/netra/stats             │
-│  GET  /api/v1/jaal/communities      GET  /api/v1/jaal/graph/{cluster_id} │
-│  GET  /api/v1/drishti/hotspots      GET  /api/v1/drishti/heatmap         │
-│  POST /api/v1/kavach/chat           POST /api/v1/kavach/check/number     │
-│  WS   /ws/{module}                                                       │
-│                                                                          │
-│  Services layer (business logic per module)                              │
-│  Pydantic v2 schemas — single ApiResponse envelope for every endpoint   │
-│  WebSocket ConnectionManager — per-channel broadcast registry            │
-└──────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  U[User / Operator] --> F[Next.js Frontend]
+  F -->|HTTP /api/*| B[FastAPI Backend]
+  F -->|WebSocket /ws/*| W[WebSocket Hub]
+  B --> S[SENTINEL]
+  B --> N[NETRA]
+  B --> J[JAAL]
+  B --> D[DRISHTI]
+  B --> K[KAVACH]
+  S --> L[Signed evidence ledger]
+  D --> A[Signed agency feed store]
+  N --> M[Registered model registry]
+  W --> F
 ```
 
-### Live intelligence upgrades
+### Frontend layer
 
-SENTINEL accepts authorised, signed telecom, video-integrity and payment-risk
-metadata at `POST /api/v1/sentinel/ingest/live`. It fuses caller-ID attestation,
-spoofing and velocity signals, deepfake/virtual-camera metadata, payment mule
-risk and transcript analysis into an explainable result. High-confidence events
-create an alert plus separately reviewable JAAL and DRISHTI leads, and are
-recorded in a privacy-minimised SHA-256 hash chain signed with Ed25519. DRISHTI
-also accepts signed, deduplicated NCRP/NCRB/State Police/bank/FIU/telecom feed
-contracts, and JAAL preserves evidence packages in durable SQLite storage with
-independent package-and-ledger verification.
+The frontend is built with Next.js 15, React 19, TypeScript, Tailwind CSS, and a component system that supports dashboard layouts, module pages, and live data rendering. During development, Next.js proxies `/api/*` and `/ws/*` to the backend so the browser can talk to one origin.
 
-See the [architecture](docs/ARCHITECTURE.md), [partner-integration guide](docs/LIVE_INTELLIGENCE_INTEGRATION.md),
-[evaluation protocol](docs/EVALUATION_PROTOCOL.md), and the NETRA training-data
-contract at [backend/app/data/netra_datasets/README.md](backend/app/data/netra_datasets/README.md).
+### Backend layer
 
-### API Response Envelope
+The backend is a FastAPI application that exposes REST endpoints under `/api/v1/*` plus WebSocket channels under `/ws/*`. Business logic is separated into services so each module can evolve independently.
 
-Every endpoint returns the same shape:
+### Data and evidence layer
 
-```json
-{
-  "success": true,
-  "data": { ... },
-  "error": null,
-  "meta": {}
-}
-```
+Several services persist operational state in SQLite or Supabase, while the live-intelligence path adds signed evidence records and deduplicated feed ingestion so the system can explain how a signal was produced.
 
-This lets the frontend handle all responses uniformly without per-endpoint error parsing.
+### Model registry layer
 
-### WebSocket
-
-Connect to `/ws/{module}` (e.g. `/ws/sentinel`). On connect the server sends:
-
-```json
-{ "event": "connected", "module": "sentinel" }
-```
-
-Incoming JSON messages are echoed back as a broadcast to all subscribers on the same channel — ready for real-time alert pushes once the AI pipeline is wired in.
+NETRA includes a release-gated registered-model flow. The backend will only use a model when its card, artifact hash, and validation thresholds are present and valid.
 
 ---
 
-## Tech Stack
+## Repository Layout
 
-### Frontend
-
-| Package | Version | Purpose |
-|---|---|---|
-| Next.js | 15.3.3 | App Router, Turbopack dev server |
-| React | 19 | UI rendering |
-| TypeScript | 5 | Type safety |
-| Tailwind CSS | 4 | Utility-first styling |
-| Framer Motion | 12 | Animations and page transitions |
-| Recharts | 2.15 | Charts and data visualisation |
-| Radix UI | various | Accessible headless primitives (Dialog, Tabs, Tooltip, Dropdown, Switch) |
-| socket.io-client | 4.8 | WebSocket real-time connection |
-| Lucide React | 0.475 | Icon set |
-| axios | 1.7 | HTTP client |
-| next-themes | 0.4 | Dark/light theme switching |
-| clsx + tailwind-merge | — | Conditional class merging |
-
-### Backend
-
-| Package | Version | Purpose |
-|---|---|---|
-| FastAPI | 0.115.6 | Async REST + WebSocket API framework |
-| Uvicorn | 0.34.0 | ASGI server (with standard extras) |
-| Pydantic | 2.11.4 | Data validation and serialisation |
-| pydantic-settings | 2.9.1 | Config from `.env` files |
-| python-multipart | 0.0.20 | Form/file upload parsing |
-
----
-
-## Project Structure
-
-```
-ET_AI_Hack/
+```text
+ET-AI-Hack/
 ├── frontend/
 │   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx              # Landing / hero page
-│   │   │   ├── layout.tsx            # Root layout (theme provider, fonts)
-│   │   │   ├── globals.css           # Global CSS variables and base styles
-│   │   │   ├── dashboard/            # Unified command centre page
-│   │   │   ├── sentinel/             # Digital arrest scam detector
-│   │   │   ├── netra/                # Counterfeit currency scanner
-│   │   │   ├── jaal/                 # Fraud network graph
-│   │   │   ├── drishti/              # Geospatial crime map
-│   │   │   ├── kavach/               # Citizen fraud shield chatbot
-│   │   │   └── (auth)/               # Auth routes (grouped, no layout segment)
-│   │   ├── components/
-│   │   │   ├── home/                 # Landing page sections
-│   │   │   ├── layout/               # Navbar, sidebar, app shell
-│   │   │   ├── ui/                   # WireSphere, ThreatGauge, and other primitives
-│   │   │   └── providers/            # ThemeProvider, context wrappers
-│   │   ├── hooks/                    # Custom React hooks
-│   │   ├── lib/                      # axios API client, utility functions
-│   │   └── types/                    # TypeScript type definitions
-│   ├── next.config.ts                # Dev proxy rewrites, image config
-│   ├── tailwind.config.ts
+│   │   ├── app/                         # Pages, routes, and app shell
+│   │   ├── components/                  # UI building blocks and layouts
+│   │   ├── hooks/                       # Client-side hooks
+│   │   ├── lib/                         # API clients and helpers
+│   │   └── types/                       # Shared TypeScript types
+│   ├── next.config.ts                   # Proxy rewrites and image config
+│   ├── tailwind.config.ts               # Tailwind theme setup
 │   ├── postcss.config.mjs
 │   ├── tsconfig.json
 │   └── package.json
 │
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                   # FastAPI app factory, CORS, router wiring, WS hub
-│   │   ├── config.py                 # pydantic-settings config (reads .env)
+│   │   ├── main.py                      # FastAPI app, middleware, routes, WebSockets
+│   │   ├── config.py                    # pydantic-settings config from .env
 │   │   ├── models/
-│   │   │   └── schemas.py            # All Pydantic schemas + ApiResponse envelope
-│   │   ├── routes/
-│   │   │   ├── dashboard.py          # /api/v1/dashboard/*
-│   │   │   ├── sentinel.py           # /api/v1/sentinel/*
-│   │   │   ├── netra.py              # /api/v1/netra/*
-│   │   │   ├── jaal.py               # /api/v1/jaal/*
-│   │   │   ├── drishti.py            # /api/v1/drishti/*
-│   │   │   └── kavach.py             # /api/v1/kavach/*
-│   │   ├── services/
-│   │   │   ├── dashboard_service.py  # Aggregated stats and cross-module alert feed
-│   │   │   ├── sentinel_service.py   # Keyword-based scam scoring + number risk
-│   │   │   ├── netra_service.py      # Feature-based currency verdict
-│   │   │   ├── jaal_service.py       # Pre-seeded fraud graph + community data
-│   │   │   ├── drishti_service.py    # Pre-seeded incident hotspots
-│   │   │   └── kavach_service.py     # Intent detection + guided responses
-│   │   └── websockets/
-│   │       └── manager.py            # Async per-channel broadcast manager
-│   ├── run.py                        # Entry point: python run.py
-│   ├── requirements.txt
-│   ├── .env.example                  # Template — safe to commit
-│   └── .env                          # Local secrets — gitignored
+│   │   │   └── schemas.py               # Pydantic request/response models
+│   │   ├── routes/                      # API route handlers per module
+│   │   ├── services/                    # Core business logic
+│   │   └── websockets/                  # WebSocket manager and handlers
+│   ├── app/data/
+│   │   ├── scam_corpus.json             # SENTINEL corpus
+│   │   ├── kavach_docs/                 # Citizen guidance content
+│   │   ├── netra_datasets/              # NETRA dataset contract and docs
+│   │   └── scenarios/                   # Scenario inputs and fixtures
+│   ├── data/
+│   │   └── netra/models/                # Registered NETRA model card + artifact
+│   ├── data_runtime/                    # Runtime DBs, keys, and ledger files
+│   ├── scripts/                         # Utility scripts
+│   ├── supabase/                        # SQL schemas for persistent stores
+│   ├── tests/                           # Backend test coverage
+│   ├── run.py                           # Backend launcher
+│   ├── requirements.txt                 # Python dependencies
+│   └── .env                             # Local secrets and configuration
 │
-├── context/                          # Competition brief and planning docs
-├── .gitignore
+├── chrome-extension/                    # Manifest V3 companion extension
+├── docs/                                # Architecture and evaluation docs
+├── context/                             # Competition brief and planning inputs
+├── feature_plans/                       # Feature-specific planning notes
+├── notebooks/                           # Training/export notebooks
+├── whatsapp-bridge/                     # Node bridge for WhatsApp integration
 └── README.md
 ```
+
+### Key backend paths
+
+- `backend/app/services/sentinel_service.py` handles core scam scoring.
+- `backend/app/services/sentinel_intelligence.py` handles signed live partner events.
+- `backend/app/services/netra_service.py` runs the multi-stage currency pipeline.
+- `backend/app/services/netra_model_service.py` handles the registered NETRA model card and artifact.
+- `backend/app/services/agency_feed_service.py` ingests signed agency feeds.
+- `backend/app/services/evidence_ledger.py` stores the signed evidence chain.
 
 ---
 
@@ -221,64 +170,66 @@ ET_AI_Hack/
 
 ### Prerequisites
 
-- **Node.js** >= 18 — [nodejs.org](https://nodejs.org)
-- **Python** >= 3.11 — [python.org](https://python.org)
-- **npm** (bundled with Node)
-- **Git**
+- Node.js 18 or newer
+- Python 3.11 or newer
+- npm
+- Git
 
----
-
-### 1. Clone
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/<your-username>/ET_AI_Hack.git
 cd ET_AI_Hack
 ```
 
----
-
-### 2. Backend
+### 2. Backend setup
 
 ```bash
 cd backend
-
-# Create and activate a virtual environment
 python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment
-copy .env.example .env        # Windows
-# cp .env.example .env        # macOS / Linux
 ```
 
-The default `.env` values work out of the box for local development — no changes needed.
+Activate the environment:
 
-**Start the backend:**
+```bash
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+```
+
+Install backend dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Copy the environment template if needed:
+
+```bash
+copy .env.example .env
+```
+
+Start the backend:
 
 ```bash
 python run.py
 ```
 
-or directly:
+Or run uvicorn directly:
 
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
+Useful backend URLs:
+
 - API base: `http://localhost:8000`
-- Interactive Swagger docs: `http://localhost:8000/docs`
+- Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
----
-
-### 3. Frontend
+### 3. Frontend setup
 
 ```bash
 cd frontend
@@ -291,201 +242,284 @@ Create `frontend/.env.local`:
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-**Start the frontend:**
+Start the frontend:
 
 ```bash
 npm run dev
 ```
 
+Useful frontend URL:
+
 - App: `http://localhost:3000`
 
-During `npm run dev`, Next.js proxies `/api/*` and `/ws/*` to `localhost:8000` automatically — no CORS configuration needed.
+During development, the frontend proxies `/api/*` and `/ws/*` to the backend automatically, so you usually do not need extra CORS tweaking beyond the defaults already in `backend/.env`.
 
-### Chrome extension
+### 4. Optional Chrome extension
 
-The deployable Manifest V3 companion lives in [`chrome-extension/`](./chrome-extension/). It provides module shortcuts and optional voice control for the configured RAKSHA portal. See its [deployment guide](./chrome-extension/README.md) to load it locally or generate the Chrome Web Store upload ZIP.
+The companion extension lives in [`chrome-extension/`](chrome-extension/). It provides portal shortcuts and optional voice control for the configured RAKSHA experience. Its own setup and packaging instructions are documented in [`chrome-extension/README.md`](chrome-extension/README.md).
 
----
-
-### 4. Verify everything is running
+### 5. Verify the stack
 
 ```bash
-# Backend health check
+# Backend health
 curl http://localhost:8000/health
-# → {"success":true,"data":{"status":"ok","service":"raksha-ai-api"},...}
 
-# Dashboard stats
+# Dashboard summary
 curl http://localhost:8000/api/v1/dashboard/stats
 
-# Test SENTINEL text analysis
+# SENTINEL text analysis
 curl -X POST http://localhost:8000/api/v1/sentinel/analyse/text \
   -H "Content-Type: application/json" \
-  -d '{"text": "This is CBI. Your account has been frozen due to money laundering."}'
-```
-
----
-
-## API Reference
-
-All endpoints return the standard `ApiResponse` envelope:
-
-```json
-{ "success": true, "data": <payload>, "error": null, "meta": {} }
-```
-
-### Health
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Service health check |
-
-### Dashboard
-
-| Method | Endpoint | Params | Description |
-|--------|----------|--------|-------------|
-| GET | `/api/v1/dashboard/stats` | — | Active alerts, scams today, counterfeits found, citizens protected |
-| GET | `/api/v1/dashboard/alerts` | `?limit=20` (max 100) | Recent cross-module alert feed with severity and score |
-
-### SENTINEL — Scam Detection
-
-| Method | Endpoint | Body / Params | Description |
-|--------|----------|---------------|-------------|
-| POST | `/api/v1/sentinel/analyse/text` | `{"text": "..."}` | Scores text against 20+ scam intent keywords; returns `threat_score`, `verdict` (SCAM/SUSPICIOUS/SAFE), matched `intents`, and `confidence` |
-| GET | `/api/v1/sentinel/number/{phone}` | path: `phone` | Returns `risk_score` (0–100) and `reports` count for a given number |
-| GET | `/api/v1/sentinel/alerts` | — | List of active high-severity SENTINEL alerts |
-
-Example response for `/sentinel/analyse/text`:
-```json
-{
-  "success": true,
-  "data": {
-    "threat_score": 74.0,
-    "verdict": "SCAM",
-    "intents": ["ARREST", "CBI", "MONEY LAUNDERING", "ACCOUNT"],
-    "confidence": 0.84
-  }
-}
-```
-
-### NETRA — Currency Verification
-
-| Method | Endpoint | Params | Description |
-|--------|----------|--------|-------------|
-| GET | `/api/v1/netra/scan` | `?seed=note` | Returns AUTHENTIC/SUSPICIOUS/COUNTERFEIT verdict with 10-feature security checklist |
-| GET | `/api/v1/netra/stats` | — | Cumulative scan counts and detection breakdown |
-
-Security features checked: Security Thread, Watermark, Latent Image, Micro Lettering, Intaglio Print, Colour-shift Ink, See-through Register, Serial Number, Bleed Lines, Denomination Numeral.
-
-### JAAL — Fraud Network
-
-| Method | Endpoint | Params | Description |
-|--------|----------|--------|-------------|
-| GET | `/api/v1/jaal/communities` | — | List of detected fraud ring communities with node count and risk score |
-| GET | `/api/v1/jaal/graph/{cluster_id}` | path: `cluster_id` | Full graph (nodes + directed edges) for a specific cluster — ready for D3/Recharts force layout |
-
-Node types: `person`, `mule`, `hub`, `phone`, `account`. Edge types: `OWNS`, `CALLED`, `ASSOCIATED_WITH`, `TRANSFERRED_TO`.
-
-### DRISHTI — Geospatial Intelligence
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/drishti/hotspots` | Incident points with lat/lng, intensity (0–1), type (scam/counterfeit/network), and district |
-| GET | `/api/v1/drishti/heatmap` | Simplified lat/lng/weight array for map heatmap overlays |
-
-### KAVACH — Citizen Shield
-
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| POST | `/api/v1/kavach/chat` | `{"message": "...", "sessionId": "..."}` | Detects intent (emergency/report_scam/check_number/currency/greeting), returns safety guidance, `riskLevel`, and `quickActions` |
-| POST | `/api/v1/kavach/check/number` | `{"phone": "..."}` | Fast risk flag for a phone number (`safe: bool`, `risk_score`) |
-
-Detected intents: `emergency`, `report_scam`, `check_number`, `currency`, `greeting`, `fallback`.  
-Emergency responses always include the **1930 Cyber Crime Helpline**.
-
-### WebSocket
-
-```
-ws://localhost:8000/ws/{module}
-```
-
-Available channels: `sentinel`, `netra`, `jaal`, `drishti`, `kavach`, `dashboard`.
-
-On connect:
-```json
-{ "event": "connected", "module": "sentinel" }
-```
-
-Send a JSON payload; it is broadcast to all subscribers on the same channel:
-```json
-{ "event": "message", "module": "sentinel", "payload": { ... } }
+  -d '{"text":"This is CBI. Your account has been frozen due to money laundering."}'
 ```
 
 ---
 
 ## Environment Variables
 
-### Backend — `backend/.env`
+### Backend `.env`
 
-| Variable | Default | Description |
+The backend reads [`backend/.env`](backend/.env) through `pydantic-settings`.
+
+#### Runtime and UI
+
+| Variable | Purpose | Notes |
 |---|---|---|
-| `FASTAPI_DEBUG` | `true` | Enable debug mode and detailed error responses |
-| `FASTAPI_SECRET_KEY` | `dev-secret-change-me` | App secret key — **must be changed in production** |
-| `BACKEND_HOST` | `0.0.0.0` | Interface to bind |
-| `BACKEND_PORT` | `8000` | Port to listen on |
-| `CORS_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated allowed CORS origins |
-| `FRONTEND_DEV_URL` | `http://localhost:3000` | Frontend origin (informational) |
+| `FASTAPI_DEBUG` | Enables debug mode | Keep `true` locally, `false` in production |
+| `FASTAPI_SECRET_KEY` | App secret | Replace with a strong random value for production |
+| `BACKEND_HOST` | Bind address | Usually `0.0.0.0` |
+| `BACKEND_PORT` | Listen port | Usually `8000` |
+| `CORS_ORIGINS` | Allowed origins | Comma-separated list |
+| `FRONTEND_DEV_URL` | Frontend origin | Used for local development assumptions |
 
-### Frontend — `frontend/.env.local`
+#### Supabase and data stores
 
-| Variable | Description |
+| Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | Backend base URL, e.g. `http://localhost:8000` |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Public anon key for client-safe uses |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-role key for privileged server operations |
+| `SUPABASE_SERVICE_KEY` | Alternate service-key name supported by the config |
+| `DATABASE_URL` | PostgreSQL connection string if used by related components |
+
+#### SENTINEL and messaging
+
+| Variable | Purpose |
+|---|---|
+| `GROQ_API_KEY` | Groq LLM access |
+| `GROQ_MODEL` | Model name |
+| `NUMVERIFY_API_KEY` | Phone lookup service |
+| `AUTHKEY_API_KEY` | SMS/voice alert delivery |
+| `AUTHKEY_SENDER_ID` | Sender label |
+| `AUTHKEY_COUNTRY_CODE` | Default country code |
+| `WHATSAPP_BRIDGE_URL` | Node-sidecar bridge URL |
+
+#### Live intelligence and evidence
+
+| Variable | Purpose | Notes |
+|---|---|---|
+| `INTEGRATION_HMAC_SECRET` | Shared secret for signed partner webhooks | Generate a long random secret |
+| `INTEGRATION_REQUIRE_SIGNATURE` | Enforce signatures for live partner events | Set `true` outside local dev |
+| `INTEGRATION_MAX_EVENT_AGE_SECONDS` | Replay window | Default `300` |
+| `EVIDENCE_LEDGER_PATH` | Ledger DB path | File path, not a secret |
+| `EVIDENCE_PACKAGE_DB_PATH` | Evidence package DB path | File path, not a secret |
+| `EVIDENCE_SIGNING_PRIVATE_KEY_PATH` | Private key file path | Auto-created if missing |
+| `EVIDENCE_SIGNING_PUBLIC_KEY_PATH` | Public key file path | Shared verifier material |
+| `AGENCY_FEED_HMAC_SECRET` | Shared secret for agency feeds | Generate a different long random secret |
+| `AGENCY_FEED_REQUIRE_SIGNATURE` | Enforce signed agency feeds | Set `true` in production |
+| `AGENCY_FEED_MAX_EVENT_AGE_SECONDS` | Replay window | Default `300` |
+| `AGENCY_FEED_DB_PATH` | Agency feed DB path | File path, not a secret |
+
+#### NETRA registry
+
+| Variable | Purpose | Notes |
+|---|---|---|
+| `NETRA_MODEL_DIR` | Registered model directory | Default `data/netra/models` |
+| `NETRA_DATASET_DIR` | Training/evaluation dataset root | Must contain dataset folders with `manifest.jsonl` |
+| `NETRA_MIN_VALIDATION_ACCURACY` | Release gate | Accuracy threshold |
+| `NETRA_MAX_FALSE_POSITIVE_RATE` | Release gate | False-positive threshold |
+
+### Frontend `.env.local`
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | Backend base URL, usually `http://localhost:8000` |
 
 ---
 
-## Data Models (Key Schemas)
+## API Reference
 
-```typescript
-// Every API response
+Every endpoint returns the same response envelope:
+
+```json
+{
+  "success": true,
+  "data": {},
+  "error": null,
+  "meta": {}
+}
+```
+
+### Health
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Service health check |
+
+### Dashboard
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/dashboard/stats` | Combined platform metrics |
+| GET | `/api/v1/dashboard/alerts` | Cross-module alert feed |
+
+### SENTINEL
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/v1/sentinel/analyse/text` | Score text for scam intent and threat level |
+| GET | `/api/v1/sentinel/number/{phone}` | Return risk information for a phone number |
+| GET | `/api/v1/sentinel/alerts` | List active SENTINEL alerts |
+| POST | `/api/v1/sentinel/ingest/live` | Ingest authorised live intelligence events |
+
+### NETRA
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/v1/netra/scan` | Upload a currency image for analysis |
+| POST | `/api/v1/netra/scan/batch` | Scan multiple images in one request |
+| GET | `/api/v1/netra/scan/{scan_id}` | Fetch a previous scan result |
+| GET | `/api/v1/netra/serial/{number}` | Validate a serial number |
+| GET | `/api/v1/netra/stats` | Aggregate NETRA scan statistics |
+| POST | `/api/v1/netra/report` | Report a counterfeit note for follow-up |
+| GET | `/api/v1/netra/history` | Recent scan history |
+| GET | `/api/v1/netra/model/status` | Registered model readiness and card status |
+| POST | `/api/v1/netra/model/train` | Train a registered model from an approved dataset |
+| POST | `/api/v1/netra/model/evaluate` | Evaluate a registered dataset |
+
+### JAAL
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/jaal/communities` | Fraud-ring communities |
+| GET | `/api/v1/jaal/graph/{cluster_id}` | Full graph for a specific cluster |
+
+### DRISHTI
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/v1/drishti/hotspots` | Geotagged hotspot incidents |
+| GET | `/api/v1/drishti/heatmap` | Heatmap-friendly lat/lng/weight data |
+
+### KAVACH
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/v1/kavach/chat` | Citizen chat assistant and safety guidance |
+| POST | `/api/v1/kavach/check/number` | Fast number-risk check |
+
+### WebSockets
+
+| Channel | Endpoint | Purpose |
+|---|---|---|
+| Generic module feed | `/ws/{module}` | Broadcast messages to a module channel |
+| SENTINEL stream | `/ws/sentinel/stream` | Live scam-intelligence stream |
+| WhatsApp relay | `/ws/whatsapp` | Bridge WhatsApp events to the frontend |
+
+On connect, the server sends:
+
+```json
+{ "event": "connected", "module": "sentinel" }
+```
+
+Messages received by a channel are broadcast to all subscribers on that channel.
+
+---
+
+## Data Contracts
+
+### Standard API response
+
+```ts
 interface ApiResponse<T> {
   success: boolean;
   data: T;
   error: string | null;
   meta: Record<string, unknown>;
 }
+```
 
-// Dashboard
+### Dashboard summary
+
+```ts
 interface DashboardStats {
   activeAlerts: number;
   scamsDetectedToday: number;
   counterfeitFound: number;
   citizensProtected: number;
 }
+```
 
-// SENTINEL result
+### SENTINEL result
+
+```ts
 interface SentinelAnalysisResult {
-  threat_score: number;      // 0–100
+  threat_score: number;
   verdict: "SCAM" | "SUSPICIOUS" | "SAFE";
   intents: string[];
-  confidence: number;        // 0–1
+  confidence: number;
 }
+```
 
-// NETRA result
+### NETRA result
+
+```ts
 interface NetraScanResult {
   verdict: "AUTHENTIC" | "SUSPICIOUS" | "COUNTERFEIT";
   confidence: number;
-  features: Array<{ name: string; status: "pass" | "fail" | "warn" }>;
   denomination: string;
+  features: Array<{
+    name: string;
+    status: "pass" | "fail" | "warn";
+  }>;
+}
+```
+
+### JAAL graph
+
+```ts
+interface GraphNode {
+  id: string;
+  label: string;
+  type: string;
+  riskScore: number;
 }
 
-// JAAL graph
-interface GraphNode { id: string; label: string; type: string; riskScore: number; }
-interface GraphEdge { id: string; source: string; target: string; type: string; weight: number; }
+interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: string;
+  weight: number;
+}
+```
 
-// DRISHTI
-interface HotspotData { id: string; lat: number; lng: number; intensity: number; type: string; district: string; }
+### DRISHTI hotspot
 
-// KAVACH
+```ts
+interface HotspotData {
+  id: string;
+  lat: number;
+  lng: number;
+  intensity: number;
+  type: string;
+  district: string;
+}
+```
+
+### KAVACH response
+
+```ts
 interface KavachChatResponse {
   reply: string;
   intents: string[];
@@ -496,67 +530,72 @@ interface KavachChatResponse {
 
 ---
 
-## Running in Production
+## Chrome Extension
 
-The project includes development baselines and production-gated integration
-paths. For a production deployment:
+The repository includes a deployable Manifest V3 companion in [`chrome-extension/`](chrome-extension/). It is designed to extend the portal experience with shortcuts and optional voice-driven navigation.
 
-1. Supply authorised, representative training/evaluation data and register only
-   validated models. NETRA deliberately refuses a verdict without one.
-2. Set `FASTAPI_DEBUG=false` and generate a strong `FASTAPI_SECRET_KEY`.
-3. Update `CORS_ORIGINS` to your production frontend domain.
-4. Run with multiple Uvicorn workers behind a reverse proxy (e.g. Nginx or an ALB):
-
-```bash
-uvicorn app.main:app --workers 4 --host 0.0.0.0 --port 8000
-```
-
-5. Build and serve the Next.js frontend:
-
-```bash
-cd frontend
-npm run build
-npm run start
-```
+If you want to package or validate it, start from the extension’s own README and scripts in that folder.
 
 ---
 
-## Roadmap — From Prototype to Production AI
+## Production Notes
 
-| Module | Prototype (current) | Production AI target |
+This repository includes local-development defaults, but production deployments should tighten the following:
+
+1. Set `FASTAPI_DEBUG=false`.
+2. Replace `FASTAPI_SECRET_KEY` with a strong random value.
+3. Use real shared secrets for `INTEGRATION_HMAC_SECRET` and `AGENCY_FEED_HMAC_SECRET`.
+4. Set `INTEGRATION_REQUIRE_SIGNATURE=true` and `AGENCY_FEED_REQUIRE_SIGNATURE=true` outside local demo mode.
+5. Keep `NETRA_MODEL_DIR` pointed at a valid registered-model folder with a matching card and artifact hash.
+6. Provide a real dataset tree under `NETRA_DATASET_DIR` only when you intend to train or evaluate models.
+7. Run the backend behind a reverse proxy and a TLS-terminated deployment target.
+8. Store secrets outside version control wherever possible.
+
+The evidence ledger creates its own Ed25519 keypair files if they do not already exist, so those paths are runtime files rather than manual secrets.
+
+---
+
+## Roadmap
+
+| Module | Current baseline | Next target |
 |---|---|---|
-| SENTINEL | Signed telecom/video/payment metadata fusion plus content classification | IndicBERT / Faster-Whisper fine-tuned on authorised scam corpora; source-specific number reputation feeds |
-| NETRA | Transparent, manifest-trained baseline registry with hold-out gates; no model ships until authorised FICN data is supplied | Vetted CNN/feature-localisation model trained and benchmarked on RBI/agency-verified FICN data |
-| JAAL | Seed graph plus live module/agency signal ingestion; persistent signed evidence packages | Graph Neural Network (GraphSAGE) on live transaction + call metadata; FIU-IND integration |
-| DRISHTI | Historical development baseline plus signed NCRP/NCRB/state/bank/FIU/telecom ingest | Approved production feeds, clustering and patrol optimisation model |
-| KAVACH | Rule-based intent matching | Rasa NLU or LLM-backed agent; 12-language support via IndicTrans2 |
-| WebSocket | In-process broadcast registry | Redis pub/sub backed; connect to live AI inference pipeline events |
+| SENTINEL | Rule-based scoring plus live signed partner fusion | More robust multilingual scam classification and source-specific feeds |
+| NETRA | Transparent registered-model flow with release gates | Stronger vetted CNN and localisation model on authorised FICN data |
+| JAAL | Seed graph + evidence-backed ingestion | Graph neural network over live financial and call metadata |
+| DRISHTI | Geospatial baseline with signed feed ingest | Production agency feeds and patrol optimisation |
+| KAVACH | Rule-based assistant | Richer multilingual assistant with broader intent coverage |
+| WebSockets | In-process broadcast registry | Distributed pub/sub event bus |
 
 ---
 
-## Problem Statement
-
-> Build an AI-powered Digital Public Safety Intelligence platform that equips law enforcement agencies, financial institutions, and citizens with proactive tools to detect, disrupt, and respond to digital fraud networks, counterfeit currency circulation, and organised scam operations — shifting from **reactive case investigation to predictive threat neutralisation**.
-
-Theme: **Smart Cities / Public Safety / Digital Trust / Geospatial Law Enforcement**
-
----
-
-## Hackathon
+## Hackathon Context
 
 **ET AI Hackathon 2.0** — Economic Times × Unstop  
-Phase 2: Build Sprint | Prize pool: ₹10,00,000
+Theme: Smart Cities / Public Safety / Digital Trust / Geospatial Law Enforcement
 
-| Prize | Amount |
-|---|---|
-| Winner | ₹5,00,000 |
-| 1st Runner-Up | ₹3,00,000 |
-| 2nd Runner-Up | ₹2,00,000 |
+### Problem statement
 
-Evaluation criteria: detection accuracy, precision/recall, false positive rate, lead time before victimisation, and auditability of intelligence packages for legal admissibility.
+Build an AI-powered digital public safety intelligence platform that equips law enforcement agencies, financial institutions, and citizens with proactive tools to detect, disrupt, and respond to digital fraud networks, counterfeit currency circulation, and organised scam operations.
+
+### Why this matters
+
+- reduce time-to-detection before victimisation spreads
+- expose network relationships instead of isolated incidents
+- preserve auditability and evidence integrity
+- provide citizens a usable first-response safety layer
+
+### Evaluation focus
+
+- detection accuracy
+- precision and recall
+- false-positive rate
+- lead time before victimisation
+- auditability of intelligence packages for legal admissibility
 
 ---
 
 ## License
+
+See the repository’s upstream license or project terms if present.
 
 Built for a hackathon and intended for demonstration purposes. Not for production deployment without replacing mock service logic with validated AI models and appropriate data governance.
