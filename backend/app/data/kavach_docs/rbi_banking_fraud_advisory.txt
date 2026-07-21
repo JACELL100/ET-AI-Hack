@@ -1,0 +1,70 @@
+Title: RBI Advisory on Banking and Digital Payment Fraud
+
+RBI (Reserve Bank of India) has issued multiple advisories on digital fraud. This document summarizes key guidance for citizens.
+
+RBI'S CORE RULES — WHAT YOUR BANK WILL NEVER DO
+
+1. Your bank will NEVER ask for your PIN, password, CVV, or OTP over phone, SMS, or email.
+2. Your bank will NEVER ask you to install a remote access app (AnyDesk, TeamViewer, etc.).
+3. Your bank will NEVER ask you to transfer money to verify your account or to "protect" your funds.
+4. Your bank's official website always has .bank.in or .com domain — verify before entering credentials.
+5. Your bank will NEVER threaten to block your account if you don't act within minutes.
+
+RECOGNIZING FAKE BANK COMMUNICATIONS
+
+Fraudulent SMS: Contains a link that leads to a phishing site. Official bank SMS never contains a URL asking for login.
+Fraudulent Email: Uses domains like sbi-alerts@gmail.com or hdfc-bank@outlook.com. Official emails use @sbi.co.in, @hdfcbank.com, etc.
+Fraudulent Call: Caller knows your name and last 4 digits of your card (obtained from data breaches). They use this to appear legitimate.
+
+SECURING YOUR BANK ACCOUNT
+
+Internet Banking:
+- Use a strong, unique password — do not use the same password on other sites.
+- Always log out after using net banking.
+- Enable OTP-based transaction confirmation.
+- Register your mobile number for transaction alerts.
+- Regularly check your account statement for unauthorized transactions.
+
+Debit/Credit Cards:
+- Memorize your PIN — never write it on the card or store it with the card.
+- Cover the keypad when entering PIN at ATMs and POS terminals.
+- Inspect ATMs for skimming devices (extra keypad overlay or camera near keypad slot).
+- Report a lost or stolen card to the bank immediately (cards can be hot-listed 24x7).
+- Enable international transactions only when traveling abroad; disable when back.
+
+ATM Safety:
+- Prefer ATMs in well-lit, monitored locations.
+- Be aware of strangers offering to "help" at ATMs — a common distraction technique.
+- If your card gets stuck in the ATM, call the bank's helpline immediately — do not leave.
+- Change your ATM PIN every 6 months.
+
+REPORTING UNAUTHORIZED TRANSACTIONS
+
+If you notice an unauthorized transaction:
+1. Call your bank's 24x7 helpline immediately (number on the back of your card).
+2. Ask them to place a hold on your account.
+3. Call 1930 within the same hour.
+4. Document: transaction amount, date/time, merchant or recipient name, reference/UTR number.
+5. File at cybercrime.gov.in.
+
+RBI TIMELINE FOR COMPLAINT RESOLUTION:
+- Bank must acknowledge your fraud complaint within 3 working days.
+- Provisional credit for zero-liability cases must be given within 10 working days.
+- Final resolution within 90 days.
+
+BANKING OMBUDSMAN
+If your bank fails to resolve the complaint satisfactorily within 30 days:
+- File with the Banking Ombudsman at RBI: cms.rbi.org.in
+- Toll-free: 14440
+- The Ombudsman can award compensation up to Rs.20 lakh for deficiency in service.
+
+IMPORTANT BANK HELPLINE NUMBERS (24x7)
+- SBI: 1800-1234 / 1800-11-2211
+- HDFC Bank: 1800-202-6161
+- ICICI Bank: 1800-1080
+- Axis Bank: 1800-419-5959
+- Kotak Mahindra Bank: 1860-266-2666
+- Bank of Baroda: 1800-5700
+- Punjab National Bank: 1800-180-2222
+- Canara Bank: 1800-103-0018
+Note: These are toll-free numbers. Fraudsters often create fake numbers — always get your bank's number from the back of your card or the official website, not from a Google search.

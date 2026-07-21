@@ -1,0 +1,60 @@
+Title: Digital Arrest Scam — Complete Guide for Indian Citizens
+
+WHAT IS DIGITAL ARREST?
+
+Digital arrest is a sophisticated impersonation scam where criminals pose as officers from CBI, ED (Enforcement Directorate), Customs, Narcotics Control Bureau, Income Tax, TRAI, or local police. They use video calls (Skype, WhatsApp, FaceTime) to simulate an official interrogation and keep victims in a state of fear.
+
+The MHA (Ministry of Home Affairs) reported over Rs.1,776 crore defrauded in just the first nine months of 2024. Individual victims have lost amounts ranging from Rs.1 lakh to Rs.7 crore in a single incident.
+
+HOW THE SCAM UNFOLDS
+
+Phase 1 — The Hook Call:
+A caller says your phone number or Aadhaar is linked to drug trafficking, money laundering, or parcel containing contraband. They create urgency: "A courier package in your name was intercepted at the airport."
+
+Phase 2 — Escalation to Video Call:
+They transfer you to a "senior officer" on video call. The fraudster is in a fake police/government office setup with uniforms, official-looking backdrops, and fake ID cards.
+
+Phase 3 — The Isolation Trap:
+They instruct you to stay on video call 24 hours, not to speak to family, and not to step out. This isolation prevents you from verifying their identity or seeking help.
+
+Phase 4 — Extortion:
+They say you must transfer money to a "government escrow account" to prove innocence, pay bail, or avoid arrest. Each transfer leads to a demand for more.
+
+KEY FACTS TO REMEMBER
+
+1. No government agency (CBI, ED, Police, TRAI, Income Tax, Customs) ever arrests anyone over a video call or WhatsApp.
+2. There is no such thing as "digital arrest" in Indian law.
+3. Real investigations involve physical summons sent by post/courier, not phone calls.
+4. No government account ever asks for payment via UPI, crypto, or wire transfer to "prove innocence".
+5. If you are genuinely under investigation, a lawyer will be present.
+
+IMMEDIATE ACTIONS IF YOU RECEIVE THIS CALL
+
+Step 1: Stay calm. Do NOT show panic — it emboldens the scammer.
+Step 2: Hang up the call immediately. Do not engage or argue.
+Step 3: DO NOT transfer any money.
+Step 4: DO NOT share Aadhaar, PAN, bank details, or any OTP.
+Step 5: Inform a family member or trusted person immediately.
+Step 6: Call 1930 (National Cyber Crime Helpline, available 24x7).
+Step 7: File a complaint at cybercrime.gov.in.
+Step 8: Call the nearest police station if you feel threatened.
+
+IF YOU HAVE ALREADY TRANSFERRED MONEY
+
+Act within the first 60 minutes for the best chance of reversal:
+1. Call 1930 immediately.
+2. Call your bank's 24x7 helpline and ask them to place a HOLD on your account.
+3. Note the recipient UPI ID / account number for the complaint.
+4. Do not transfer more money even if told "the first transfer will be refunded after the second."
+
+CASE STUDIES (real-world patterns)
+
+Case 1 — Mumbai Professional: A 45-year-old doctor received a call claiming his Aadhaar was used to open a SIM card involved in drug trafficking. Over 3 days of video calls, he transferred Rs.1.8 crore. He was isolated from family throughout. Reported to 1930. Partial recovery of Rs.40 lakh was possible.
+
+Case 2 — Hyderabad Engineer: A software engineer was told his bank account was used for money laundering. He was kept on Skype for 18 hours. He transferred Rs.50 lakh in 4 transactions. The police identified the fraud ring based on UPI trail.
+
+Case 3 — Delhi Retired Couple: A retired government employee and his wife were told their son (who was abroad) had been arrested. They were asked not to call the son. They transferred Rs.12 lakh before a neighbor intervened and called 1930.
+
+GOVERNMENT RESPONSE
+
+I4C (Indian Cyber Crime Coordination Centre) under MHA coordinates with telecom companies to block numbers used for digital arrest scams. Over 6 lakh SIM cards linked to cyber fraud have been blocked since 2023. The government has also issued advisories through Doordarshan, AIR, and press releases.

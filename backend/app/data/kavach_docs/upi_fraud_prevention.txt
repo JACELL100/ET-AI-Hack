@@ -1,0 +1,59 @@
+Title: UPI Fraud Prevention — Complete Safety Guide
+
+UPI (Unified Payments Interface) has over 350 million active users in India with daily transaction values exceeding Rs.20,000 crore. It is also the most exploited payment system by fraudsters.
+
+GOLDEN RULE OF UPI: You NEVER need to enter your PIN to RECEIVE money. UPI PIN is only for sending money. Any instruction to "enter your PIN to receive your refund" is fraud.
+
+COMMON UPI SCAM TYPES
+
+1. COLLECT REQUEST SCAM
+How it works: Fraudster sends you a payment collect/request (not a payment). The UPI notification looks similar to an incoming payment. You enter your PIN thinking you are accepting the money — but you are actually authorizing a payment TO the fraudster.
+Prevention: Always read the full notification. "Pay Rs.XXXX" = you are paying. "Receive Rs.XXXX" = you will receive (and you do NOT need PIN).
+
+2. FAKE QR CODE SCAM
+How it works: Fraudster sends a QR code via WhatsApp/SMS saying "scan this to receive your refund" or "scan to get lottery prize". Scanning and paying sends your money to the fraudster.
+Prevention: You cannot receive money by scanning a QR code. QR codes only initiate payments FROM you.
+
+3. SCREEN MIRRORING / REMOTE ACCESS SCAM
+How it works: Fraudster says they are a "bank executive" helping you with UPI issues. They ask you to install AnyDesk, TeamViewer, QuickSupport, or AirMirror. Once installed, they see your screen in real time and capture your UPI PIN and bank OTPs.
+Prevention: Never install remote access apps on request. Your real bank will never ask for this.
+
+4. FAKE REFUND SCAM
+How it works: Fraudster calls posing as a customer support agent and says "your order was cancelled, we are processing a refund, please confirm your UPI ID." They send a collect request instead of a payment. Victim enters PIN to "confirm refund" and gets debited instead.
+Prevention: Refunds from legitimate companies are direct credits — they never require you to enter your PIN.
+
+5. OLX / CLASSIFIEDS ADVANCE SCAM
+How it works: Fraudster posing as army officer or buyer contacts seller on OLX/Quikr and says they will pay extra but need you to scan a QR code to "verify your account" first. The scan debits your account.
+Prevention: Never scan QR codes to receive payment from buyers. Simply share your UPI ID or phone number.
+
+6. SIM SWAP LEADING TO UPI TAKEOVER
+How it works: Fraudster collects your Aadhaar/PAN details, gets your mobile number ported to their SIM, and then resets your UPI app. All OTPs go to their SIM.
+Sign: Your phone shows "No Service" or "Emergency calls only" unexpectedly.
+Action: Immediately call your telecom provider's 24x7 helpline, then call 1930.
+
+UPI SAFETY CHECKLIST
+
+Daily habits:
+- Check recipient name in UPI app before confirming every payment.
+- Enable transaction notifications via SMS (not just app push notifications).
+- Set a daily UPI transaction limit lower than your balance.
+- Lock your UPI app with biometrics or PIN.
+
+When receiving payments:
+- You do NOT need to enter PIN. No exceptions.
+- Do not scan any QR code to receive.
+- Do not install any app to receive money.
+
+When buying/selling online:
+- Receive payment first before dispatching goods.
+- Use BHIM or NPCI-backed apps, not third-party wallets for large amounts.
+- Verify payment screenshot independently — fraudsters send fake screenshots.
+
+If defrauded:
+- Call 1930 within the first 60 minutes.
+- Provide: your bank, transaction UPI reference (UTR number), recipient UPI ID.
+- Also call your bank's helpline to place a hold.
+- File at cybercrime.gov.in.
+
+NPCI DISPUTE MECHANISM
+All UPI disputes are managed by NPCI (National Payments Corporation of India). A legitimate chargeback takes 30–45 working days. Instant reversals do NOT happen — any caller promising an instant reversal is another scammer.

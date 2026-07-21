@@ -1,0 +1,60 @@
+Title: Investment Fraud and Cryptocurrency Scams in India
+
+SCALE OF THE PROBLEM
+
+Investment fraud is the highest-value cybercrime category in India. SEBI and RBI together received over 2.5 lakh investment fraud complaints in 2023-24. Individual losses range from Rs.50,000 to Rs.5 crore. The scams are run by organized syndicates, often from abroad.
+
+HOW INVESTMENT SCAMS BEGIN
+
+The typical entry point is a WhatsApp message: "Join our Premium Stock Advisory Group — 100% verified tips from SEBI expert." Or a Telegram link: "Earn 3% daily on crypto — our AI trading bot never loses." Or a social media ad: "Invest Rs.10,000 in 7 days get Rs.30,000 — limited slots."
+
+Once inside the group, you see "members" posting fake profit screenshots. The group admin (the fraudster) builds credibility over days or weeks before asking for investment.
+
+TYPES OF INVESTMENT SCAMS
+
+1. FAKE STOCK TRADING PLATFORMS
+Fraudsters create fake stock trading apps/websites that look exactly like real platforms (Zerodha, Groww, Angel One). Your "portfolio" grows on screen — but the money is never in a real market. When you try to withdraw, they demand tax clearance fees, SEBI approval fees, or RBI verification charges. Every payment generates another demand.
+
+2. CRYPTOCURRENCY PUMP-AND-DUMP
+Fraudsters talk up a specific cryptocurrency in groups, driving up its price. They sell their holdings at the peak. The price crashes. Newcomers who bought at peak suffer losses. Variations include "pig butchering" where a romantic relationship is built online before the investment pitch.
+
+3. PONZI / CHIT FUND SCAMS
+Promises of guaranteed monthly returns (3-15%). Early investors receive payouts funded by newer investors' capital. When new recruitment slows, the scheme collapses. Recent India examples: Gainbitcoin, GainBTC, various MLM crypto schemes.
+
+4. FAKE IPO SCAMS
+Messages claiming insider access to upcoming IPOs at a discount. Fraudsters collect money but never actually invest. No SEBI-regulated IPO is ever sold through WhatsApp or private messages.
+
+5. COMMODITY AND FOREX SCAMS
+Fake commodity trading groups claiming expertise in gold, silver, crude oil, or forex. Require you to open accounts on unregulated platforms. When profits accumulate, withdrawal is blocked.
+
+WARNING SIGNS (RED FLAGS)
+
+- Guaranteed returns above 10% per year (equity markets don't guarantee returns).
+- Pressure to invest immediately or lose the "opportunity."
+- Investment platform is not SEBI-registered (check: sebi.gov.in).
+- Promoter is not SEBI-registered Research Analyst or Investment Advisor.
+- Requires payment to "unlock" or "withdraw" your profits.
+- Only communicates via WhatsApp/Telegram — no physical office, no phone number.
+- Claims AI bots guarantee profits — no algorithm guarantees profit in live markets.
+
+HOW TO VERIFY
+
+Before investing, check:
+1. Is the platform SEBI-registered? Search on sebi.gov.in/sebiweb/other/OtherAction.do?doRecognisedFpi=yes
+2. Is the mutual fund AMFI-registered? Check at amfiindia.com
+3. Is the broker SEBI and NSE/BSE registered? Check on nseindia.com or bseindia.com
+4. Is the investment advisor SEBI-registered? Check at sebi.gov.in/investors/advisors
+5. Google the company name + "SEBI action" or "RBI warning"
+
+WHAT TO DO IF SCAMMED
+
+1. Do not pay any more money — any "fee to withdraw" is another scam.
+2. Call 1930 (National Cyber Crime Helpline).
+3. File at cybercrime.gov.in — include platform URL, amount paid, UPI IDs used.
+4. File a complaint with SEBI at scores.sebi.gov.in if the fraud involves investment products.
+5. Report to local Economic Offenses Wing (EOW) of police.
+6. Report the app to Play Store / App Store — fraudulent apps get taken down within 24-48 hours of mass reports.
+
+SEBI INVESTOR HELPLINE: 1800-22-7575 (Monday to Friday, 9am to 6pm)
+RBI HELPLINE: 14440
+NATIONAL CYBER CRIME HELPLINE: 1930 (24x7)

@@ -33,6 +33,19 @@ dist/
 *.so
 .Python
 
+# HuggingFace local cache (sentence-transformers, whisper models)
+backend/.hf_cache/
+.hf_cache/
+
+# YOLO model weights
+backend/yolo12n.pt
+backend/*.pt
+*.pt
+
+# WhatsApp Bridge Auth (Baileys multi-device)
+whatsapp-bridge/.baileys_auth/
+.baileys_auth/
+
 # pytest / coverage
 .pytest_cache/
 .coverage

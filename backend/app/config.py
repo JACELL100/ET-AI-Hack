@@ -60,6 +60,23 @@ class Settings(BaseSettings):
     # WhatsApp Bridge (Node.js sidecar)
     whatsapp_bridge_url: str = "http://localhost:3001"
 
+    # Upstash Vector DB — for KAVACH RAG knowledge base
+    upstash_vector_rest_url: str = ""
+    upstash_vector_rest_token: str = ""
+
+    @property
+    def upstash_vector_url(self) -> str:
+        return self.upstash_vector_rest_url
+
+    @property
+    def upstash_vector_token(self) -> str:
+        return self.upstash_vector_rest_token
+
+    # KAVACH RAG pipeline settings
+    kavach_embedding_model: str = "all-MiniLM-L6-v2"
+    kavach_top_k: int = 5
+    kavach_min_score: float = 0.01
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

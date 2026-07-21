@@ -1,72 +1,116 @@
-"""KAVACH — citizen fraud shield (rule-based mock chat + number check).
+"""KAVACH — RAG-powered citizen fraud shield service.
 
-Lightweight intent detection so the chat endpoint is usable before the
-Rasa / IndicBERT stack is wired in (plan mock strategy). Shapes match the
-frontend KavachChatResponse / number-check responses.
+Replaces the rule-based mock with a full Retrieval-Augmented Generation
+pipeline: Upstash Vector DB for semantic search + Groq LLM for response.
+Falls back to rule-based responses if the RAG system is unavailable.
 """
 from __future__ import annotations
 
+import logging
 import re
 
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# RAG chat (primary path)
+# ---------------------------------------------------------------------------
+
+def reply(message: str, session_id: str | None = None) -> dict:
+    """Main chat handler — uses RAG pipeline when available."""
+    try:
+        from app.services.kavach_rag import get_rag
+        rag = get_rag()
+        return rag.chat(user_message=message, session_id=session_id)
+    except Exception as exc:
+        logger.warning("RAG pipeline unavailable (%s), using fallback", exc)
+        return _fallback_reply(message)
+
+
+# ---------------------------------------------------------------------------
+# Fallback rule-based handler
+# ---------------------------------------------------------------------------
+
 _INTENTS = {
-    "report_scam": ["report", "scam", "fraud", "cheated"],
-    "check_number": ["number", "caller", "who called", "safe"],
-    "currency": ["fake", "currency", "note", "counterfeit", "cash"],
-    "emergency": ["help", "urgent", "arrest", "threat"],
-    "greeting": ["hi", "hello", "hey"],
+    "report_scam": ["report", "scam", "fraud", "cheated", "complaint"],
+    "check_number": ["number", "caller", "who called", "safe", "phone"],
+    "currency": ["fake", "currency", "note", "counterfeit", "cash", "ficn"],
+    "emergency": ["help", "urgent", "arrest", "threat", "digital arrest"],
+    "greeting": ["hi", "hello", "hey", "namaste"],
 }
 
 
-def detect_intents(message: str) -> list[str]:
+def _detect_intents(message: str) -> list[str]:
     lowered = message.lower()
     return [intent for intent, keys in _INTENTS.items() if any(k in lowered for k in keys)]
 
 
-def reply(message: str) -> dict:
-    intents = detect_intents(message)
+def _fallback_reply(message: str) -> dict:
+    intents = _detect_intents(message)
     if not intents:
         intents = ["fallback"]
+
     if "emergency" in intents:
         text = (
-            "If you are being threatened with 'digital arrest', do NOT transfer money. "
-            "It is a scam. Call 1930 (Cyber Crime Helpline) immediately."
+            "If you are being threatened with 'digital arrest', do NOT transfer money — "
+            "it is 100% a scam. No government agency (CBI, ED, Police) ever arrests "
+            "anyone over a video call. Hang up immediately and call 1930 (Cyber Crime "
+            "Helpline) right now."
         )
         risk = "danger"
-        actions = ["Call 1930", "Report to local police"]
+        actions = ["Call 1930 Now", "File Complaint Online", "Report to Police"]
     elif "report_scam" in intents:
         text = (
-            "I can help you file a report. Please share the caller number and a short "
-            "description, and I'll draft an NCRB complaint for you."
+            "To report a cybercrime: Call 1930 (National Cyber Crime Helpline) or "
+            "visit cybercrime.gov.in. For financial fraud, report within the first hour "
+            "for the best chance of fund recovery."
         )
         risk = "warning"
-        actions = ["Start report", "Share number"]
+        actions = ["Call 1930", "File at cybercrime.gov.in", "Check Phone Number"]
     elif "check_number" in intents:
         text = (
-            "Share the phone number and I'll check it against known scam databases and "
-            "warn you if it has been reported."
+            "Share the phone number and I'll check it against known scam databases. "
+            "You can use the phone number checker in this app."
         )
         risk = "warning"
-        actions = ["Check a number"]
+        actions = ["Check a Number"]
     elif "currency" in intents:
         text = (
-            "You can scan a note with NETRA to verify if it's counterfeit. Want me to "
-            "open the scanner?"
+            "Use RAKSHA AI's NETRA module to scan a currency note for authenticity. "
+            "Key checks: security thread, watermark, color-shifting ink, and raised "
+            "intaglio print. Fake notes should be handed to the nearest bank branch."
         )
         risk = "safe"
-        actions = ["Open NETRA scanner"]
+        actions = ["Open NETRA Scanner"]
     elif "greeting" in intents:
-        text = "Namaste! I'm KAVACH, your fraud shield. Ask me about scams, suspicious numbers, or how to stay safe."
+        text = (
+            "Namaste! I'm KAVACH (कवच), your AI-powered fraud shield. I can help you "
+            "with: digital arrest scams, UPI fraud, fake currency, OTP theft, reporting "
+            "cybercrime, and more. What do you need help with?"
+        )
         risk = "safe"
-        actions = ["Check a number", "Report a scam"]
+        actions = ["Check a Number", "Report a Scam", "Learn About Scams"]
     else:
         text = (
-            "I'm here to help you stay safe from digital fraud. Ask me to check a "
-            "suspicious number, report a scam, or learn how to protect yourself."
+            "I'm here to help you stay safe from digital fraud. Ask me about "
+            "suspicious calls, UPI scams, digital arrest, fake currency, or how to "
+            "report cybercrime. Call 1930 for urgent help."
         )
         risk = "safe"
-        actions = ["Check a number", "Report a scam"]
-    return {"reply": text, "intents": intents, "quickActions": actions, "riskLevel": risk}
+        actions = ["Check a Number", "Report a Scam", "Call 1930"]
 
+    return {
+        "reply": text,
+        "intents": intents,
+        "quickActions": actions,
+        "riskLevel": risk,
+        "sources": [],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Number check
+# ---------------------------------------------------------------------------
 
 def check_number(phone: str) -> dict:
     digits = re.sub(r"\D", "", phone)

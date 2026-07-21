@@ -1,0 +1,38 @@
+Title: Cyber Fraud Emergency Checklist
+
+If you have just been defrauded online, act within the first 60 minutes — banks
+can freeze fraudulent transactions if notified quickly.
+
+IMMEDIATE STEPS
+---------------
+1. Call 1930 (National Cyber Crime Helpline) — available 24x7.
+2. Call your bank's 24x7 helpline and ask them to place a HOLD on your account.
+3. Do NOT transfer any additional money, even if the fraudster says it will "reverse" the first transaction.
+4. Take screenshots of all messages, call logs, UPI transaction IDs, and payment receipts.
+5. Note down the fraudster's phone number, UPI ID, bank account number, and website URL if available.
+
+FILING A COMPLAINT
+------------------
+- Online: cybercrime.gov.in → Report Financial Fraud
+- You will need: transaction date/time, amount, your bank account, recipient account/UPI ID
+- Keep the complaint acknowledgement number for follow-up.
+- For amounts above Rs.1 lakh also file an FIR at the nearest police station.
+
+ACCOUNT SECURITY
+----------------
+- Change your net banking password and UPI PIN immediately.
+- Enable transaction alerts via SMS for all accounts.
+- Check your CIBIL report at cibil.com within 30 days for any fraudulent loan applications.
+- If your Aadhaar was shared, lock biometrics at myAadhaar.uidai.gov.in.
+
+WHAT NOT TO DO
+--------------
+- Do not accept a "refund" offer from the same fraudster — it is a second scam.
+- Do not install any app the fraudster recommends.
+- Do not share OTP or bank PIN with anyone, including people who call claiming to be police.
+
+RECOVERY CHANCES
+----------------
+- Reported within 1 hour: ~60% chance of transaction reversal
+- Reported within 24 hours: ~30% chance
+- Reported after 7 days: very low, but complaint is still important for FIR and insurance claims

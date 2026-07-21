@@ -1,0 +1,59 @@
+Title: Indian Cyber Crime Laws and Legal Rights of Victims
+
+LEGAL FRAMEWORK
+
+India has several laws under which cybercrime is prosecuted:
+
+INFORMATION TECHNOLOGY ACT, 2000 (amended 2008)
+- Section 43: Unauthorized access to computer systems — compensation up to Rs.1 crore.
+- Section 66: Computer-related offenses (hacking) — imprisonment up to 3 years and/or fine up to Rs.5 lakh.
+- Section 66C: Identity theft (using someone's password/digital signature dishonestly) — imprisonment up to 3 years and fine up to Rs.1 lakh.
+- Section 66D: Cheating by personation using computer resources — imprisonment up to 3 years and fine up to Rs.1 lakh.
+- Section 66E: Violation of privacy (publishing private images) — imprisonment up to 3 years and/or fine up to Rs.2 lakh.
+- Section 67: Publishing obscene material in electronic form — imprisonment up to 5 years and fine.
+- Section 72: Breach of confidentiality and privacy — imprisonment up to 2 years and/or fine up to Rs.1 lakh.
+
+INDIAN PENAL CODE (IPC) SECTIONS
+- Section 420: Cheating — imprisonment up to 7 years and fine.
+- Section 468: Forgery for purpose of cheating — imprisonment up to 7 years and fine.
+- Section 419: Punishment for cheating by personation — imprisonment up to 3 years and/or fine.
+- Section 489A–489E: Counterfeiting currency notes and possession of counterfeit currency — imprisonment up to life imprisonment for manufacturing, up to 10 years for possession/circulation.
+
+WHERE TO FILE A COMPLAINT
+
+Option 1 — Online (fastest):
+Website: cybercrime.gov.in
+Open 24x7. Select "Report Financial Fraud" for UPI/banking fraud. You will need: amount, date/time, recipient UPI ID or bank account, your bank details.
+
+Option 2 — Phone:
+1930 — National Cyber Crime Helpline (24x7)
+The helpline can flag accounts and initiate holds with banks immediately.
+
+Option 3 — Local Police Station:
+File an FIR under relevant IPC/IT Act sections. For amounts above Rs.1 lakh, it is recommended to file an FIR in addition to the online complaint.
+
+Option 4 — Adjudicating Officer:
+Each state has an IT Act Adjudicating Officer for civil complaints under Section 43. Claims up to Rs.5 crore can be filed here without going to court.
+
+YOUR RIGHTS AS A VICTIM
+
+1. Right to an FIR: Police cannot refuse to register an FIR for cybercrime. If refused, file a complaint to the Superintendent of Police or approach the Magistrate.
+2. Right to anonymity: For sensitive cases (online harassment, intimate image abuse), complaints can be filed anonymously on cybercrime.gov.in.
+3. Right to fund recovery: The bank is obligated to acknowledge your fraud complaint and investigate within a fixed timeline under RBI guidelines.
+4. Right to compensation: Under IT Act Section 43, victims can claim compensation from the offending party through the Adjudicating Officer.
+
+RBI GUIDELINES FOR ZERO LIABILITY
+
+Under RBI circular on Limiting Liability of Customers in Unauthorized Electronic Transactions:
+- If fraud occurs WITHOUT your negligence (e.g., phishing by hacker, SIM swap): You have ZERO liability. Bank must reverse full amount within 10 working days.
+- If fraud occurs WITH your negligence (you shared OTP): Liability is shared, but partial reversal may still be possible depending on your bank.
+- Report to bank WITHIN 3 days for full zero-liability coverage.
+- Timeline: Bank must acknowledge complaint within 3 working days and resolve within 90 days.
+
+KEY GOVERNMENT BODIES
+
+I4C — Indian Cyber Crime Coordination Centre: nodal body under MHA that coordinates all cyber crime response across states. They operate the 1930 helpline.
+CERT-In — Indian Computer Emergency Response Team: handles cybersecurity incidents, breaches, and vulnerabilities. Toll-free: 1800-11-0001.
+NPCI — National Payments Corporation of India: handles UPI, IMPS, and digital payment disputes.
+TRAI — Telecom Regulatory Authority of India: handles SIM fraud, unsolicited calls, and spam. Report via DND app or 1909.
+UIDAI — Unique Identification Authority of India: handles Aadhaar misuse. Helpline: 1947.
