@@ -276,6 +276,57 @@ export interface WhatsAppChat {
   hasMedia?: boolean;
 }
 
+export interface JaalSearchResult {
+  id: string;
+  label: string;
+  type: string;
+  riskScore: number;
+  communityId: string;
+  communityName: string;
+  connections: number;
+  status: "known" | "under_review";
+}
+
+export interface JaalCitizenReportInput {
+  entityType: "phone" | "account" | "upi" | "website";
+  entityValue: string;
+  relatedEntityType?: "phone" | "account" | "upi" | "website";
+  relatedEntityValue?: string;
+  relationship?: string;
+  description: string;
+  reportType?: string;
+  district?: string;
+  state?: string;
+  reporterName?: string;
+}
+
+export interface JaalCitizenReportResult {
+  report: {
+    id: string;
+    timestamp: string;
+    status: "received" | "correlated";
+    matchCount: number;
+    reviewCommunityId: string;
+  };
+  matches: JaalSearchResult[];
+  message: string;
+}
+
+export interface JaalTraceResult {
+  found: boolean;
+  message: string;
+  hops?: number;
+  path: Array<{ node: { id: string; label: string; type: string }; via: GraphEdge | null }>;
+  moneyFlowEdges?: GraphEdge[];
+}
+
+export interface JaalEvidencePackage {
+  id: string;
+  integrity: { algorithm: string; hash: string; generatedAt: string };
+  chainOfCustody: Array<{ event: string; at: string; actor: string }>;
+  payload: Record<string, unknown>;
+}
+
 export interface WhatsAppMedia {
   kind: "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | string;
   contentType?: string;

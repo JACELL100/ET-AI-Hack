@@ -7,6 +7,13 @@ Three distinct fraud ring clusters with full node/edge graphs:
 """
 from __future__ import annotations
 
+from collections import deque
+from datetime import datetime, timezone
+from hashlib import sha256
+import json
+import re
+from uuid import uuid4
+
 # ---------------------------------------------------------------------------
 # Community manifest (returned by get_communities)
 # ---------------------------------------------------------------------------
@@ -794,6 +801,52 @@ _CLUSTER_GRAPHS: dict[str, tuple[list[dict], list[dict]]] = {
     "c-delhi":   (_DELHI_NODES,   _DELHI_EDGES),
 }
 
+# Citizen-originated intelligence is intentionally kept in a separate community
+# until an investigator verifies or merges it with an existing operation.  This
+# makes reports useful immediately without treating an allegation as a finding.
+_CITIZEN_NODES: list[dict] = []
+_CITIZEN_EDGES: list[dict] = []
+_CITIZEN_REPORTS: list[dict] = []
+_EVIDENCE_PACKAGES: list[dict] = []
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _normalise(value: str) -> str:
+    """Normalise identifiers enough for correlation without exposing raw data."""
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def _node_matches(node: dict, query: str) -> bool:
+    needle = _normalise(query)
+    label = _normalise(str(node.get("label", "")))
+    if needle and needle in label:
+        return True
+    metadata = node.get("metadata", {})
+    return any(needle and needle in _normalise(str(v)) for v in metadata.values() if isinstance(v, (str, int, float)))
+
+
+def _all_graphs() -> list[tuple[str, list[dict], list[dict]]]:
+    return [
+        (cluster_id, nodes, edges)
+        for cluster_id, (nodes, edges) in _CLUSTER_GRAPHS.items()
+    ] + [("c-citizen-signals", _CITIZEN_NODES, _CITIZEN_EDGES)]
+
+
+def _citizen_community() -> dict:
+    return {
+        "id": "c-citizen-signals",
+        "name": "Citizen Signal Review Queue",
+        "nodeCount": len(_CITIZEN_NODES),
+        "riskScore": min(0.92, 0.35 + (len(_CITIZEN_REPORTS) * 0.06)) if _CITIZEN_REPORTS else 0.0,
+        "primaryType": "phone",
+        "lastActive": _CITIZEN_REPORTS[0]["timestamp"] if _CITIZEN_REPORTS else _now(),
+        "description": "Unverified citizen submissions awaiting JAAL correlation and investigator review.",
+        "status": "review",
+    }
+
 # ---------------------------------------------------------------------------
 # Public service functions
 # ---------------------------------------------------------------------------
@@ -801,16 +854,20 @@ _CLUSTER_GRAPHS: dict[str, tuple[list[dict], list[dict]]] = {
 
 def get_communities() -> list[dict]:
     """Return the community manifest for all known fraud rings."""
-    return _COMMUNITIES
+    return [*_COMMUNITIES, _citizen_community()]
 
 
 def get_graph(cluster_id: str) -> dict:
     """Return the full node/edge graph for a specific cluster."""
-    nodes, edges = _CLUSTER_GRAPHS.get(
-        cluster_id,
-        (_MUMBAI_NODES, _MUMBAI_EDGES),  # fallback to Mumbai if unknown id
-    )
-    meta = _CLUSTER_META.get(cluster_id, _COMMUNITIES[0])
+    if cluster_id == "c-citizen-signals":
+        meta = _citizen_community()
+        nodes, edges = _CITIZEN_NODES, _CITIZEN_EDGES
+    else:
+        nodes, edges = _CLUSTER_GRAPHS.get(
+            cluster_id,
+            (_MUMBAI_NODES, _MUMBAI_EDGES),  # fallback to Mumbai if unknown id
+        )
+        meta = _CLUSTER_META.get(cluster_id, _COMMUNITIES[0])
 
     high_risk = sum(1 for n in nodes if n["riskScore"] >= 0.85)
 
@@ -829,8 +886,8 @@ def get_graph(cluster_id: str) -> dict:
 
 def get_stats() -> dict:
     """Return aggregate statistics across all clusters."""
-    all_nodes = _MUMBAI_NODES + _JAMTARA_NODES + _DELHI_NODES
-    all_edges = _MUMBAI_EDGES + _JAMTARA_EDGES + _DELHI_EDGES
+    all_nodes = _MUMBAI_NODES + _JAMTARA_NODES + _DELHI_NODES + _CITIZEN_NODES
+    all_edges = _MUMBAI_EDGES + _JAMTARA_EDGES + _DELHI_EDGES + _CITIZEN_EDGES
 
     frozen = sum(
         1
@@ -842,8 +899,229 @@ def get_stats() -> dict:
     return {
         "total_nodes": len(all_nodes),
         "total_edges": len(all_edges),
-        "total_communities": len(_COMMUNITIES),
+        "total_communities": len(_COMMUNITIES) + 1,
         "high_risk_nodes": high_risk,
         "frozen_accounts": frozen,
         "active_investigations": len(_COMMUNITIES),
+        "pending_citizen_signals": len(_CITIZEN_REPORTS),
     }
+
+
+def search_entities(query: str, limit: int = 10) -> list[dict]:
+    """Return a minimal, citizen-safe correlation result set."""
+    results: list[dict] = []
+    for community_id, nodes, edges in _all_graphs():
+        for node in nodes:
+            if not _node_matches(node, query):
+                continue
+            links = sum(1 for edge in edges if edge["source"] == node["id"] or edge["target"] == node["id"])
+            results.append({
+                "id": node["id"],
+                "label": node["label"],
+                "type": node["type"],
+                "riskScore": node.get("riskScore", 0),
+                "communityId": community_id,
+                "communityName": (_CLUSTER_META.get(community_id) or _citizen_community())["name"],
+                "connections": links,
+                "status": "known" if community_id != "c-citizen-signals" else "under_review",
+            })
+    results.sort(key=lambda item: (item["riskScore"], item["connections"]), reverse=True)
+    return results[:limit]
+
+
+def _find_existing_node(value: str) -> tuple[str, dict] | None:
+    for community_id, nodes, _ in _all_graphs():
+        for node in nodes:
+            if _node_matches(node, value):
+                return community_id, node
+    return None
+
+
+def _citizen_node_type(entity_type: str) -> str:
+    return {"phone": "phone", "account": "account", "upi": "account"}.get(entity_type.lower(), "person")
+
+
+def submit_citizen_report(req: dict) -> dict:
+    """Create an auditable citizen signal and correlate it against known rings."""
+    report_id = f"JS-{uuid4().hex[:10].upper()}"
+    timestamp = _now()
+    entity_value = req["entityValue"].strip()
+    related_value = (req.get("relatedEntityValue") or "").strip()
+    primary_match = _find_existing_node(entity_value)
+    related_match = _find_existing_node(related_value) if related_value else None
+
+    def make_node(value: str, entity_type: str) -> dict:
+        node = {
+            "id": f"cit-{uuid4().hex[:10]}",
+            "label": value,
+            "type": _citizen_node_type(entity_type),
+            "riskScore": 0.52,
+            "metadata": {
+                "submitted_entity_type": entity_type,
+                "report_count": 1,
+                "status": "unverified citizen signal",
+                "first_seen": timestamp,
+                "district": req.get("district") or "Not supplied",
+                "state": req.get("state") or "Not supplied",
+            },
+            "evidenceRefs": [report_id],
+        }
+        _CITIZEN_NODES.append(node)
+        return node
+
+    primary = primary_match[1] if primary_match else make_node(entity_value, req.get("entityType", "phone"))
+    secondary = None
+    if related_value:
+        secondary = related_match[1] if related_match else make_node(
+            related_value, req.get("relatedEntityType") or "account"
+        )
+
+    # New report evidence is attached to a matching known node too, so an
+    # investigator sees the fresh signal in the existing evidence chain.
+    if primary_match:
+        primary.setdefault("evidenceRefs", []).append(report_id)
+        primary.setdefault("metadata", {})["citizen_report_count"] = int(primary["metadata"].get("citizen_report_count", 0)) + 1
+    if secondary and related_match:
+        secondary.setdefault("evidenceRefs", []).append(report_id)
+
+    if secondary:
+        _CITIZEN_EDGES.append({
+            "id": f"cit-edge-{uuid4().hex[:10]}",
+            "source": primary["id"],
+            "target": secondary["id"],
+            "type": req.get("relationship") or "REPORTED_WITH",
+            "weight": 0.65,
+            "timestamp": timestamp,
+        })
+
+    report = {
+        "id": report_id,
+        "timestamp": timestamp,
+        "status": "correlated" if primary_match or related_match else "received",
+        "entity": {"id": primary["id"], "label": primary["label"], "type": primary["type"]},
+        "relatedEntity": {"id": secondary["id"], "label": secondary["label"], "type": secondary["type"]} if secondary else None,
+        "description": req["description"],
+        "reportType": req.get("reportType", "scam"),
+        "district": req.get("district"),
+        "state": req.get("state"),
+        "matchCount": int(primary_match is not None) + int(related_match is not None),
+        "reviewCommunityId": "c-citizen-signals",
+    }
+    _CITIZEN_REPORTS.insert(0, report)
+    return {
+        "report": report,
+        "matches": search_entities(entity_value, 5),
+        "message": "Your signal has been securely added to the JAAL review queue.",
+    }
+
+
+def get_citizen_reports(limit: int = 25) -> list[dict]:
+    return _CITIZEN_REPORTS[:limit]
+
+
+def ingest_module_signal(
+    source_module: str,
+    entity_value: str,
+    description: str,
+    *,
+    entity_type: str = "phone",
+    risk_score: float = 0.7,
+) -> dict:
+    """Shared trigger for SENTINEL, NETRA and transaction-anomaly adapters."""
+    result = submit_citizen_report({
+        "entityType": entity_type,
+        "entityValue": entity_value,
+        "description": description,
+        "reportType": source_module.lower(),
+        "relationship": "DETECTED_BY",
+    })
+    report = result["report"]
+    report["sourceModule"] = source_module
+    primary_id = report["entity"]["id"]
+    for _, nodes, _ in _all_graphs():
+        for node in nodes:
+            if node["id"] == primary_id:
+                node["riskScore"] = max(float(node.get("riskScore", 0)), risk_score)
+                node.setdefault("metadata", {})["source_module"] = source_module
+                break
+    return result
+
+
+def trace_relationships(req: dict) -> dict:
+    """Breadth-first path discovery with relationship and transfer annotations."""
+    source_id, target_id = req["sourceId"], req["targetId"]
+    max_hops = req.get("maxHops", 5)
+    node_map: dict[str, dict] = {}
+    adjacency: dict[str, list[tuple[str, dict]]] = {}
+    for _, nodes, edges in _all_graphs():
+        node_map.update({node["id"]: node for node in nodes})
+        for edge in edges:
+            adjacency.setdefault(edge["source"], []).append((edge["target"], edge))
+            adjacency.setdefault(edge["target"], []).append((edge["source"], edge))
+
+    if source_id not in node_map or target_id not in node_map:
+        return {"found": False, "message": "One or both entities are no longer available in the graph.", "path": []}
+
+    queue = deque([(source_id, [], [source_id])])
+    visited = {source_id}
+    route: tuple[list[dict], list[str]] | None = None
+    while queue:
+        current, edge_path, node_path = queue.popleft()
+        if current == target_id:
+            route = (edge_path, node_path)
+            break
+        if len(edge_path) >= max_hops:
+            continue
+        for neighbour, edge in adjacency.get(current, []):
+            if neighbour not in visited:
+                visited.add(neighbour)
+                queue.append((neighbour, [*edge_path, edge], [*node_path, neighbour]))
+
+    if not route:
+        return {"found": False, "message": f"No linked path found within {max_hops} hops.", "path": []}
+
+    edge_path, node_path = route
+    transfers = [edge for edge in edge_path if edge.get("type") == "TRANSFERRED_TO"]
+    return {
+        "found": True,
+        "source": {"id": source_id, "label": node_map[source_id]["label"]},
+        "target": {"id": target_id, "label": node_map[target_id]["label"]},
+        "hops": len(edge_path),
+        "path": [{"node": {"id": node_id, "label": node_map[node_id]["label"], "type": node_map[node_id]["type"]}, "via": edge_path[i] if i < len(edge_path) else None} for i, node_id in enumerate(node_path)],
+        "moneyFlowEdges": transfers,
+        "message": "Linked path identified. Transfer edges are highlighted for financial follow-up." if transfers else "Relationship path identified; no direct transfer edge appears in this route.",
+    }
+
+
+def generate_evidence_package(req: dict) -> dict:
+    """Produce a deterministic JSON evidence package with an integrity hash."""
+    graph = get_graph(req["communityId"])
+    selected_ids = set(req.get("selectedNodeIds") or [])
+    included_nodes = [node for node in graph["nodes"] if not selected_ids or node["id"] in selected_ids]
+    included_ids = {node["id"] for node in included_nodes}
+    included_edges = [edge for edge in graph["edges"] if edge["source"] in included_ids and edge["target"] in included_ids]
+    generated_at = _now()
+    payload = {
+        "packageVersion": "JAAL-EVIDENCE-1.0",
+        "title": req.get("title") or f"JAAL evidence package — {graph['clusterName']}",
+        "community": {"id": req["communityId"], "name": graph["clusterName"]},
+        "generatedAt": generated_at,
+        "investigator": req.get("investigator") or "Unassigned",
+        "findings": {
+            "nodesIncluded": len(included_nodes),
+            "relationshipsIncluded": len(included_edges),
+            "highRiskEntities": [node["label"] for node in included_nodes if node.get("riskScore", 0) >= 0.85],
+            "evidenceReferences": sorted({ref for node in included_nodes for ref in node.get("evidenceRefs", [])}),
+        },
+        "nodes": included_nodes,
+        "edges": included_edges,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    package = {
+        "id": f"EP-{uuid4().hex[:12].upper()}",
+        "integrity": {"algorithm": "SHA-256", "hash": sha256(canonical.encode("utf-8")).hexdigest(), "generatedAt": generated_at},
+        "chainOfCustody": [{"event": "PACKAGE_GENERATED", "at": generated_at, "actor": req.get("investigator") or "Unassigned"}],
+        "payload": payload,
+    }
+    _EVIDENCE_PACKAGES.insert(0, package)
+    return package

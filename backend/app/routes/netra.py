@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.models.schemas import NetraReportRequest, fail, ok
-from app.services import netra_service
+from app.services import jaal_service, netra_service
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,13 @@ async def scan_currency(
         logger.exception("Unexpected error during NETRA scan (file=%s)", file.filename)
         return fail("Internal scan error — please try again with a valid image")
 
+    if result.get("verdict") == "COUNTERFEIT":
+        serial = (result.get("serial_number") or {}).get("extracted") or result.get("scan_id", "unknown-note")
+        jaal_service.ingest_module_signal(
+            "NETRA", f"Currency serial {serial}",
+            "NETRA detected a counterfeit currency note requiring network correlation.",
+            entity_type="website", risk_score=float(result.get("confidence", 0.8)),
+        )
     return ok(result)
 
 

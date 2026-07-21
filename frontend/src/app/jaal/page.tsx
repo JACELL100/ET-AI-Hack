@@ -1,271 +1,99 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  Shield, Eye, Network, Map, MessageCircle, LayoutDashboard,
-  Settings, Sun, Moon, ZoomIn, ZoomOut, RefreshCw, Download,
-  AlertTriangle, Users, Phone, CreditCard, LogOut
-} from "lucide-react";
-import { useTheme } from "@/components/providers/ThemeProvider";
-import { useAuth } from "@/components/providers/AuthContext";
-import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import React, { useEffect, useState } from "react";
+import { CheckCircle2, FileWarning, Network, Search, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { CitizenSidebar } from "@/components/layout/CitizenSidebar";
+import { useAuth } from "@/components/providers/AuthContext";
+import { searchJaalEntities, submitJaalCitizenReport } from "@/lib/api";
+import type { JaalCitizenReportInput, JaalCitizenReportResult, JaalSearchResult } from "@/types";
 
+const entityTypes = ["phone", "account", "upi", "website"] as const;
+const labelStyle: React.CSSProperties = { display: "block", marginBottom: "0.45rem", color: "var(--text-secondary)", fontSize: "0.72rem", fontWeight: 800, letterSpacing: "0.075em", textTransform: "uppercase" };
+const fieldStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "0.75rem 0.85rem", background: "var(--bg-tertiary)", border: "1px solid var(--bg-border)", borderRadius: 9, color: "var(--text-primary)", fontFamily: "var(--font-body)", fontSize: "0.9rem", outline: "none" };
 
+function riskColor(score: number) {
+  return score >= 0.7 ? "#E63A1E" : score >= 0.4 ? "#F59E0B" : "#10B981";
+}
 
-// Graph data
-const nodes = [
-  { id: "n1", label: "Rakesh Kumar", type: "person", x: 300, y: 180, risk: 92 },
-  { id: "n2", label: "+91-9876543210", type: "phone", x: 180, y: 100, risk: 78 },
-  { id: "n3", label: "ACC-4521", type: "account", x: 420, y: 100, risk: 85 },
-  { id: "n4", label: "Priya Sharma", type: "person", x: 160, y: 260, risk: 61 },
-  { id: "n5", label: "+91-8765432109", type: "phone", x: 80, y: 180, risk: 55 },
-  { id: "n6", label: "ACC-7823", type: "account", x: 500, y: 220, risk: 88 },
-  { id: "n7", label: "Mule-001", type: "mule", x: 390, y: 300, risk: 96 },
-  { id: "n8", label: "Suresh Rao", type: "person", x: 240, y: 340, risk: 44 },
-  { id: "n9", label: "ACC-9045", type: "account", x: 560, y: 140, risk: 72 },
-  { id: "n10", label: "+91-7654321098", type: "phone", x: 470, y: 360, risk: 67 },
-  { id: "n11", label: "Deepak Verma", type: "person", x: 100, y: 320, risk: 38 },
-  { id: "n12", label: "Mule-002", type: "mule", x: 310, y: 60, risk: 91 },
-];
-
-const edges = [
-  { s: "n1", t: "n2" }, { s: "n1", t: "n3" }, { s: "n1", t: "n7" },
-  { s: "n2", t: "n4" }, { s: "n2", t: "n5" }, { s: "n3", t: "n6" },
-  { s: "n3", t: "n9" }, { s: "n4", t: "n8" }, { s: "n6", t: "n7" },
-  { s: "n7", t: "n10" }, { s: "n8", t: "n11" }, { s: "n1", t: "n12" },
-  { s: "n9", t: "n12" }, { s: "n5", t: "n11" }, { s: "n10", t: "n6" },
-];
-
-const nodeColors: Record<string, string> = {
-  person: "#E63A1E",
-  phone: "#22D3EE",
-  account: "#10B981",
-  mule: "#F59E0B",
-};
-
-const communities = [
-  { id: "c1", name: "Mumbai Investment Scam Ring", nodes: 47, risk: 94 },
-  { id: "c2", name: "Delhi Digital Arrest Network", nodes: 31, risk: 88 },
-  { id: "c3", name: "Bangalore UPI Fraud Cluster", nodes: 22, risk: 76 },
-];
-
-const typeFilters = ["All", "Person", "Phone", "Account", "Mule"];
-
-export default function JaalPage() {
-  const { user, loading } = useAuth();
-
-  const [selectedNode, setSelectedNode] = useState(nodes[0]);
-  const [zoom, setZoom] = useState(1);
-  const [typeFilter, setTypeFilter] = useState("All");
-  const [selectedCommunity, setSelectedCommunity] = useState("c1");
-  const [generating, setGenerating] = useState(false);
+export default function JaalCitizenPage() {
+  const { user, loading, registerCitizen } = useAuth();
+  const [form, setForm] = useState<JaalCitizenReportInput>({ entityType: "phone", entityValue: "", relatedEntityType: "account", relatedEntityValue: "", relationship: "REPORTED_WITH", description: "", reportType: "scam", district: "", state: "", reporterName: "" });
+  const [results, setResults] = useState<JaalSearchResult[]>([]);
+  const [checking, setChecking] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState<JaalCitizenReportResult | null>(null);
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        // Not logged in — go to admin login.
-        window.location.href = "/admin";
-      } else if (!user.isAdmin) {
-        window.location.href = "/dashboard";
-      }
-    }
-  }, [user, loading]);
+    if (!loading && !user) window.location.href = "/login";
+    if (!loading && user && !user.isCitizen) registerCitizen();
+    if (user?.isCitizen) setForm(current => ({ ...current, reporterName: current.reporterName || user.name }));
+  }, [loading, user, registerCitizen]);
 
-  if (loading || !user || !user.isAdmin) {
-    return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
-        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying Admin credentials...</div>
-      </div>
-    );
-  }
+  const set = <K extends keyof JaalCitizenReportInput>(key: K, value: JaalCitizenReportInput[K]) => setForm(current => ({ ...current, [key]: value }));
 
-  const filteredNodes = nodes.filter(n =>
-    typeFilter === "All" || n.type === typeFilter.toLowerCase()
-  );
-
-  const handleGenerate = async () => {
-    setGenerating(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setGenerating(false);
-    alert("Evidence package generated! (mock)");
+  const checkEntity = async () => {
+    const value = form.entityValue.trim();
+    if (value.length < 3) { setError("Enter a phone number, account, UPI ID, or website to check."); return; }
+    setChecking(true); setError("");
+    try { const response = await searchJaalEntities(value); setResults(response.data ?? []); }
+    catch { setError("The network check could not be completed. Please try again."); }
+    finally { setChecking(false); }
   };
 
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (form.entityValue.trim().length < 3 || form.description.trim().length < 8) { setError("Please add the suspicious identifier and a short description."); return; }
+    setSubmitting(true); setError("");
+    try {
+      const response = await submitJaalCitizenReport({ ...form, entityValue: form.entityValue.trim(), relatedEntityValue: form.relatedEntityValue?.trim() || undefined });
+      setSubmitted(response.data ?? null);
+      setResults(response.data?.matches ?? []);
+    } catch { setError("Your signal could not be sent. Please try again."); }
+    finally { setSubmitting(false); }
+  };
+
+  if (loading || !user || !user.isCitizen) return <div style={{ display: "grid", placeItems: "center", minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-secondary)" }}>Verifying citizen account…</div>;
+
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden", backgroundColor: "var(--bg-primary)" }}>
-      {user.isAdmin ? <AdminSidebar /> : <CitizenSidebar />}
-      <main style={{ marginLeft: "240px", flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
-        {/* Header */}
-        <div style={{ padding: "1.5rem 2rem 1rem", borderBottom: "1px solid var(--bg-border)", backgroundColor: "var(--bg-secondary)", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "rgba(129,140,248,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Network size={20} color="#818CF8" />
-              </div>
-              <div>
-                <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1.375rem", color: "var(--text-primary)" }}>JAAL — Fraud Network Intelligence</h1>
-                <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Graph-based fraud detection and community analysis</p>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "1rem" }}>
-              {[{ label: "Communities", value: "12", color: "#818CF8" }, { label: "Nodes", value: "847" }, { label: "Risk Score", value: "87", color: "#E63A1E" }].map(s => (
-                <div key={s.label} style={{ textAlign: "right" }}>
-                  <p style={{ fontSize: "1.25rem", fontWeight: 800, color: s.color ?? "var(--text-primary)", fontFamily: "var(--font-display)" }}>{s.value}</p>
-                  <p style={{ fontSize: "0.65rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
-            {typeFilters.map(f => (
-              <button key={f} onClick={() => setTypeFilter(f)} style={{ padding: "0.3rem 0.875rem", borderRadius: "var(--radius-md)", border: `1px solid ${typeFilter === f ? "#818CF8" : "var(--bg-border)"}`, background: typeFilter === f ? "rgba(129,140,248,0.15)" : "var(--bg-tertiary)", color: typeFilter === f ? "#818CF8" : "var(--text-secondary)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", transition: "all 150ms ease" }}>
-                {f}
-              </button>
-            ))}
-          </div>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
+      <CitizenSidebar />
+      <main style={{ marginLeft: 240, flex: 1, padding: "2rem", maxWidth: 1280 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.9rem", marginBottom: "1.75rem" }}>
+          <div style={{ width: 46, height: 46, display: "grid", placeItems: "center", borderRadius: 13, background: "linear-gradient(135deg, rgba(129,140,248,.22), rgba(34,211,238,.12))", border: "1px solid rgba(129,140,248,.35)" }}><Network size={22} color="#A5B4FC" /></div>
+          <div><h1 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: "1.55rem" }}>JAAL Network Check</h1><p style={{ margin: "0.25rem 0 0", color: "var(--text-secondary)" }}>Check a suspicious identity and securely add a signal for fraud-network analysis.</p></div>
         </div>
 
-        {/* Main area */}
-        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          {/* Graph canvas */}
-          <div style={{ flex: 1, position: "relative", background: "#0A0A0F", overflow: "hidden" }}>
-            {/* Zoom controls */}
-            <div style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 10, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {[{ icon: <ZoomIn size={16} />, action: () => setZoom(z => Math.min(z + 0.2, 2)) }, { icon: <ZoomOut size={16} />, action: () => setZoom(z => Math.max(z - 0.2, 0.5)) }, { icon: <RefreshCw size={16} />, action: () => setZoom(1) }].map((btn, i) => (
-                <button key={i} onClick={btn.action} style={{ width: "34px", height: "34px", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", cursor: "pointer", color: "var(--text-secondary)" }}>
-                  {btn.icon}
-                </button>
-              ))}
-            </div>
-
-            {/* Legend */}
-            <div style={{ position: "absolute", bottom: "1rem", left: "1rem", zIndex: 10, background: "rgba(22,22,22,0.9)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", padding: "0.75rem 1rem", display: "flex", gap: "1rem" }}>
-              {Object.entries(nodeColors).map(([type, color]) => (
-                <div key={type} style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-                  <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: color }} />
-                  <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)", textTransform: "capitalize" }}>{type}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* SVG Graph */}
-            <svg width="100%" height="100%" viewBox="0 0 680 440" style={{ transform: `scale(${zoom})`, transformOrigin: "center", transition: "transform 200ms ease" }}>
-              {/* Edges */}
-              {edges.map((e, i) => {
-                const s = nodes.find(n => n.id === e.s)!;
-                const t = nodes.find(n => n.id === e.t)!;
-                return (
-                  <line key={i} x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-                    stroke="#2A2A2A" strokeWidth="1.5"
-                    strokeDasharray={i % 3 === 0 ? "4 4" : "none"}
-                    opacity="0.7" />
-                );
-              })}
-              {/* Nodes */}
-              {filteredNodes.map(node => {
-                const isSelected = selectedNode.id === node.id;
-                const color = nodeColors[node.type];
-                return (
-                  <g key={node.id} onClick={() => setSelectedNode(node)} style={{ cursor: "pointer" }}>
-                    {isSelected && <circle cx={node.x} cy={node.y} r={22} fill={color} opacity="0.2" />}
-                    <circle cx={node.x} cy={node.y} r={isSelected ? 14 : 11} fill={color} opacity={isSelected ? 1 : 0.85}
-                      style={{ filter: isSelected ? `drop-shadow(0 0 8px ${color})` : "none" }} />
-                    <circle cx={node.x} cy={node.y} r={isSelected ? 14 : 11} fill="none" stroke={color} strokeWidth="1.5" opacity="0.4" />
-                    <text x={node.x} y={node.y + 26} textAnchor="middle" fill="#888888" fontSize="9" fontFamily="var(--font-body)">{node.label}</text>
-                    {node.risk >= 80 && <text x={node.x + 10} y={node.y - 10} fill="#E63A1E" fontSize="10" fontWeight="bold">!</text>}
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* Node detail panel */}
-          <div style={{ width: "280px", flexShrink: 0, background: "var(--bg-secondary)", borderLeft: "1px solid var(--bg-border)", padding: "1.25rem", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <h3 style={{ fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>Node Detail</h3>
-
-            {selectedNode && (
-              <>
-                <div style={{ padding: "1rem", background: "var(--bg-tertiary)", borderRadius: "var(--radius-md)", border: `1px solid ${nodeColors[selectedNode.type]}30` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: nodeColors[selectedNode.type], display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {selectedNode.type === "person" ? <Users size={15} color="white" /> : selectedNode.type === "phone" ? <Phone size={15} color="white" /> : <CreditCard size={15} color="white" />}
-                    </div>
-                    <div>
-                      <p style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--text-primary)" }}>{selectedNode.label}</p>
-                      <span style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0.15rem 0.5rem", borderRadius: "100px", background: `${nodeColors[selectedNode.type]}20`, color: nodeColors[selectedNode.type] }}>{selectedNode.type}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.375rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Risk Score</span>
-                      <span style={{ fontSize: "0.875rem", fontWeight: 800, color: selectedNode.risk >= 70 ? "#E63A1E" : selectedNode.risk >= 40 ? "#F59E0B" : "#10B981" }}>{selectedNode.risk}</span>
-                    </div>
-                    <div style={{ height: "6px", background: "var(--bg-border)", borderRadius: "100px", overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${selectedNode.risk}%`, background: selectedNode.risk >= 70 ? "#E63A1E" : selectedNode.risk >= 40 ? "#F59E0B" : "#10B981", borderRadius: "100px", transition: "width 600ms ease" }} />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>Connections</p>
-                  {edges.filter(e => e.s === selectedNode.id || e.t === selectedNode.id).slice(0, 4).map((e, i) => {
-                    const other = nodes.find(n => n.id === (e.s === selectedNode.id ? e.t : e.s))!;
-                    return (
-                      <div key={i} onClick={() => setSelectedNode(other)} style={{ padding: "0.5rem 0.625rem", borderRadius: "var(--radius-sm)", marginBottom: "0.25rem", background: "var(--bg-tertiary)", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem", transition: "background 150ms ease" }}
-                        onMouseEnter={ev => (ev.currentTarget.style.background = "var(--bg-elevated)")}
-                        onMouseLeave={ev => (ev.currentTarget.style.background = "var(--bg-tertiary)")}>
-                        <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: nodeColors[other.type], flexShrink: 0 }} />
-                        <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{other.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div>
-                  <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>Evidence Refs</p>
-                  {["FIR-2024-0892", "CDR-LOG-0445", "TXN-TRAIL-221"].map(r => (
-                    <div key={r} style={{ padding: "0.375rem 0.625rem", borderRadius: "var(--radius-sm)", marginBottom: "0.25rem", background: "var(--bg-tertiary)", fontSize: "0.75rem", fontFamily: "var(--font-mono)", color: "#818CF8" }}>{r}</div>
-                  ))}
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                  {[{ label: "First Seen", value: "Mar 12, 2024" }, { label: "Last Active", value: "Jul 13, 2025" }].map(d => (
-                    <div key={d.label} style={{ padding: "0.625rem", background: "var(--bg-tertiary)", borderRadius: "var(--radius-sm)" }}>
-                      <p style={{ fontSize: "0.625rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{d.label}</p>
-                      <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", marginTop: "0.2rem" }}>{d.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.12fr) minmax(290px, .88fr)", gap: "1.25rem", alignItems: "start" }}>
+          <section style={{ padding: "1.5rem", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: 16 }}>
+            {submitted ? (
+              <div style={{ textAlign: "center", padding: "2.5rem 1rem" }}>
+                <CheckCircle2 size={52} color="#10B981" /><h2 style={{ fontFamily: "var(--font-display)", marginBottom: ".5rem" }}>Signal added securely</h2>
+                <p style={{ color: "var(--text-secondary)", maxWidth: 520, margin: "0 auto 1.25rem" }}>{submitted.message}</p>
+                <div style={{ display: "inline-flex", gap: "1rem", padding: ".8rem 1rem", borderRadius: 10, background: "var(--bg-tertiary)", color: "var(--text-secondary)", fontSize: ".82rem" }}><span>Reference: <strong style={{ color: "#A5B4FC" }}>{submitted.report.id}</strong></span><span>{submitted.report.matchCount} correlation{submitted.report.matchCount === 1 ? "" : "s"} found</span></div>
+                <button onClick={() => setSubmitted(null)} style={{ display: "block", margin: "1.5rem auto 0", padding: ".65rem 1rem", border: "1px solid rgba(129,140,248,.45)", background: "rgba(129,140,248,.1)", borderRadius: 8, color: "#A5B4FC", cursor: "pointer", fontWeight: 700 }}>Add another signal</button>
+              </div>
+            ) : (
+              <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: ".5rem", color: "#A5B4FC" }}><Sparkles size={15} /><strong style={{ fontSize: ".84rem" }}>Report a connected fraud signal</strong></div>
+                <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: ".75rem" }}><div><label style={labelStyle}>Identifier type</label><select value={form.entityType} onChange={e => set("entityType", e.target.value as JaalCitizenReportInput["entityType"])} style={fieldStyle}>{entityTypes.map(type => <option key={type}>{type}</option>)}</select></div><div><label style={labelStyle}>Suspicious identifier *</label><input value={form.entityValue} onChange={e => set("entityValue", e.target.value)} placeholder="+91…, UPI ID, account or website" style={fieldStyle} /></div></div>
+                <button type="button" onClick={checkEntity} disabled={checking} style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: ".45rem", padding: ".58rem .85rem", background: "rgba(34,211,238,.09)", border: "1px solid rgba(34,211,238,.3)", borderRadius: 8, color: "#67E8F9", cursor: checking ? "wait" : "pointer", fontWeight: 700, fontSize: ".8rem" }}><Search size={14} />{checking ? "Checking JAAL…" : "Check network"}</button>
+                <div style={{ padding: "1rem", borderRadius: 10, background: "rgba(129,140,248,.055)", border: "1px solid rgba(129,140,248,.15)" }}><p style={{ margin: "0 0 .7rem", color: "var(--text-secondary)", fontSize: ".78rem", fontWeight: 700 }}>Optional: connect a second identifier</p><div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: ".75rem" }}><select value={form.relatedEntityType} onChange={e => set("relatedEntityType", e.target.value as JaalCitizenReportInput["relatedEntityType"])} style={fieldStyle}>{entityTypes.map(type => <option key={type}>{type}</option>)}</select><input value={form.relatedEntityValue} onChange={e => set("relatedEntityValue", e.target.value)} placeholder="Linked UPI / account / number" style={fieldStyle} /></div></div>
+                <div><label style={labelStyle}>What happened? *</label><textarea required rows={4} value={form.description} onChange={e => set("description", e.target.value)} placeholder="Tell us how these details were connected. Never include your OTP, PIN, password, or full card number." style={{ ...fieldStyle, resize: "vertical" }} /></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: ".75rem" }}><div><label style={labelStyle}>District (optional)</label><input value={form.district} onChange={e => set("district", e.target.value)} style={fieldStyle} /></div><div><label style={labelStyle}>State (optional)</label><input value={form.state} onChange={e => set("state", e.target.value)} style={fieldStyle} /></div></div>
+                {error && <div style={{ padding: ".75rem", borderRadius: 8, background: "rgba(230,58,30,.08)", border: "1px solid rgba(230,58,30,.2)", color: "#FB7185", fontSize: ".84rem" }}>{error}</div>}
+                <button type="submit" disabled={submitting} style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: ".5rem", padding: ".85rem", border: 0, borderRadius: 10, background: "linear-gradient(90deg, #6366F1, #4F46E5)", color: "white", fontWeight: 800, cursor: submitting ? "wait" : "pointer", opacity: submitting ? .7 : 1 }}><Send size={16} />{submitting ? "Adding to JAAL…" : "Submit to JAAL review"}</button>
+              </form>
             )}
-          </div>
-        </div>
+          </section>
 
-        {/* Bottom bar */}
-        <div style={{ padding: "1rem 2rem", borderTop: "1px solid var(--bg-border)", background: "var(--bg-secondary)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>Community:</span>
-            <select value={selectedCommunity} onChange={e => setSelectedCommunity(e.target.value)} style={{ padding: "0.5rem 0.875rem", background: "var(--bg-tertiary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", color: "var(--text-primary)", fontSize: "0.8125rem", cursor: "pointer" }}>
-              {communities.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.nodes} nodes)</option>
-              ))}
-            </select>
-            {communities.filter(c => c.id === selectedCommunity).map(c => (
-              <span key={c.id} style={{ padding: "0.25rem 0.625rem", borderRadius: "100px", background: "rgba(230,58,30,0.15)", color: "#E63A1E", fontSize: "0.7rem", fontWeight: 700 }}>Risk: {c.risk}</span>
-            ))}
-          </div>
-          <button onClick={handleGenerate} disabled={generating} style={{ padding: "0.625rem 1.5rem", background: generating ? "var(--bg-tertiary)" : "var(--accent)", color: "white", border: "none", borderRadius: "var(--radius-md)", fontSize: "0.8125rem", fontWeight: 700, cursor: generating ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: "0.5rem", letterSpacing: "0.05em" }}>
-            {generating ? <><span style={{ width: "14px", height: "14px", borderRadius: "50%", border: "2px solid white", borderTopColor: "transparent", animation: "spin 0.7s linear infinite", display: "inline-block" }} /> GENERATING...</> : <><Download size={15} /> GENERATE EVIDENCE PACKAGE</>}
-          </button>
+          <aside style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <section style={{ padding: "1.25rem", background: "linear-gradient(145deg, rgba(34,211,238,.08), var(--bg-secondary) 65%)", border: "1px solid rgba(34,211,238,.18)", borderRadius: 16 }}><ShieldCheck size={22} color="#67E8F9" /><h2 style={{ fontSize: ".98rem", margin: ".7rem 0 .35rem" }}>Your privacy comes first</h2><p style={{ margin: 0, color: "var(--text-secondary)", fontSize: ".82rem", lineHeight: 1.55 }}>JAAL only uses the suspicious identifiers and description you submit to find patterns. Do not enter OTPs, passwords, PINs, or full card details.</p></section>
+            <section style={{ padding: "1.25rem", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: 16 }}><div style={{ display: "flex", alignItems: "center", gap: ".5rem", marginBottom: ".85rem" }}><Search size={16} color="#A5B4FC" /><h2 style={{ margin: 0, fontSize: ".9rem" }}>Correlation results</h2></div>{results.length ? results.map(result => <div key={result.id} style={{ padding: ".8rem", marginBottom: ".55rem", background: "var(--bg-tertiary)", border: `1px solid ${riskColor(result.riskScore)}33`, borderRadius: 9 }}><div style={{ display: "flex", justifyContent: "space-between", gap: ".5rem" }}><strong style={{ fontSize: ".82rem", overflow: "hidden", textOverflow: "ellipsis" }}>{result.label}</strong><span style={{ color: riskColor(result.riskScore), fontSize: ".72rem", fontWeight: 800 }}>{Math.round(result.riskScore * 100)} RISK</span></div><p style={{ margin: ".35rem 0 0", color: "var(--text-muted)", fontSize: ".72rem" }}>{result.status === "known" ? "Known network signal" : "Under review"} · {result.connections} links</p></div>) : <p style={{ color: "var(--text-muted)", fontSize: ".82rem", lineHeight: 1.5, margin: 0 }}>Run a check to see whether an identifier matches signals already known to JAAL.</p>}</section>
+            <section style={{ padding: "1rem", borderRadius: 12, background: "rgba(230,58,30,.08)", border: "1px solid rgba(230,58,30,.18)", display: "flex", gap: ".65rem" }}><FileWarning size={18} color="#FB7185" style={{ flexShrink: 0 }} /><p style={{ margin: 0, color: "var(--text-secondary)", fontSize: ".78rem", lineHeight: 1.45 }}>If money was transferred, call <strong style={{ color: "#FB7185" }}>1930</strong> immediately and file a report at cybercrime.gov.in.</p></section>
+          </aside>
         </div>
       </main>
-      <style jsx global>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }

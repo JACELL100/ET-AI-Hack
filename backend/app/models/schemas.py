@@ -217,6 +217,42 @@ class FraudCommunity(BaseModel):
     lastActive: str
 
 
+class JaalCitizenReportRequest(BaseModel):
+    """A privacy-conscious citizen signal that JAAL can correlate."""
+    entityType: str = "phone"             # phone | account | upi | website
+    entityValue: str = Field(min_length=3, max_length=160)
+    relatedEntityType: Optional[str] = None
+    relatedEntityValue: Optional[str] = Field(default=None, max_length=160)
+    relationship: str = "REPORTED_WITH"
+    description: str = Field(min_length=8, max_length=2000)
+    reportType: str = "scam"
+    district: Optional[str] = None
+    state: Optional[str] = None
+    reporterName: Optional[str] = Field(default=None, max_length=100)
+
+
+class JaalTraceRequest(BaseModel):
+    sourceId: str
+    targetId: str
+    maxHops: int = Field(default=5, ge=1, le=8)
+
+
+class JaalEvidencePackageRequest(BaseModel):
+    communityId: str
+    title: Optional[str] = Field(default=None, max_length=180)
+    selectedNodeIds: list[str] = Field(default_factory=list)
+    investigator: Optional[str] = Field(default=None, max_length=100)
+
+
+class JaalModuleSignalRequest(BaseModel):
+    """Normalised event contract for transaction monitors and JAAL peers."""
+    sourceModule: str = Field(min_length=2, max_length=40)
+    entityValue: str = Field(min_length=3, max_length=160)
+    description: str = Field(min_length=8, max_length=2000)
+    entityType: str = "account"
+    riskScore: float = Field(default=0.7, ge=0, le=1)
+
+
 # ── DRISHTI ─────────────────────────────────────────────────────────────────
 class HotspotData(BaseModel):
     id: str

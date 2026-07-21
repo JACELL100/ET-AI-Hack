@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import re
 
 from fastapi import APIRouter, File, Path as PathParam, UploadFile, Query
 from fastapi.responses import FileResponse
@@ -22,7 +23,7 @@ from app.models.schemas import (
     ok,
     fail,
 )
-from app.services import sentinel_service
+from app.services import jaal_service, sentinel_service
 from app.services.simulation_scenarios import list_scenarios, get_scenario_by_id
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,16 @@ router = APIRouter(prefix="/sentinel", tags=["sentinel"])
 def analyse_text(payload: SentinelTextRequest):
     """Analyse text (SMS/WhatsApp/email) for scam patterns."""
     result = sentinel_service.analyse_text(payload.text)
+    score = float(result.get("threat_score", result.get("risk_score", 0)))
+    # SENTINEL's operational score is 0–100; JAAL stores risk as 0–1.
+    if score >= 70:
+        phone = re.search(r"(?:\+91[-\s]?)?[6-9]\d{9}", payload.text)
+        fingerprint = phone.group(0) if phone else f"SENTINEL-{abs(hash(payload.text)) % 10**10:010d}"
+        jaal_service.ingest_module_signal(
+            "SENTINEL", fingerprint,
+            "High-confidence scam content detected by SENTINEL.",
+            entity_type="phone" if phone else "website", risk_score=score / 100,
+        )
     return ok(result)
 
 

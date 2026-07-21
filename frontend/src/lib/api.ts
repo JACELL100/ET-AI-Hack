@@ -9,6 +9,11 @@ import type {
   FraudCommunity,
   GraphNode,
   GraphEdge,
+  JaalCitizenReportInput,
+  JaalCitizenReportResult,
+  JaalEvidencePackage,
+  JaalSearchResult,
+  JaalTraceResult,
   HotspotData,
   LiveIncident,
   KavachChatResponse,
@@ -38,7 +43,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    console.error("[API Error]", err?.response?.status, err?.message);
+    // A caller renders the user-facing failure state. Logging as an error here
+    // makes Next's dev overlay appear even when that failure is handled.
+    console.warn("[API request failed]", err?.response?.status ?? "network", err?.message);
     return Promise.reject(err);
   },
 );
@@ -208,6 +215,26 @@ export const getJaalStats = () =>
         active_investigations: number;
       }>
     >("/api/v1/jaal/stats")
+    .then((r) => r.data);
+
+export const searchJaalEntities = (query: string) =>
+  api
+    .get<ApiResponse<JaalSearchResult[]>>("/api/v1/jaal/search", { params: { q: query } })
+    .then((r) => r.data);
+
+export const submitJaalCitizenReport = (data: JaalCitizenReportInput) =>
+  api
+    .post<ApiResponse<JaalCitizenReportResult>>("/api/v1/jaal/citizen-report", data)
+    .then((r) => r.data);
+
+export const traceJaalRelationships = (sourceId: string, targetId: string, maxHops = 5) =>
+  api
+    .post<ApiResponse<JaalTraceResult>>("/api/v1/jaal/trace", { sourceId, targetId, maxHops })
+    .then((r) => r.data);
+
+export const generateJaalEvidencePackage = (data: { communityId: string; title?: string; selectedNodeIds?: string[]; investigator?: string }) =>
+  api
+    .post<ApiResponse<JaalEvidencePackage>>("/api/v1/jaal/evidence-package", data)
     .then((r) => r.data);
 
 // ── DRISHTI ───────────────────────────────────────────────────────────────────

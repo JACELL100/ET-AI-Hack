@@ -3,12 +3,12 @@
 import React, {
   useState, useEffect, useRef, useCallback, useMemo,
 } from 'react';
-import { Network, Download, RefreshCw, Search, AlertTriangle, Shield } from 'lucide-react';
+import { Network, Download, RefreshCw, Search, AlertTriangle, Shield, ZoomIn, ZoomOut, LocateFixed } from 'lucide-react';
 import { AdminSidebar } from '@/components/layout/AdminSidebar';
 import { useAuth } from '@/components/providers/AuthContext';
-import { getJaalCommunities, getJaalGraph, getJaalStats } from '@/lib/api';
+import { generateJaalEvidencePackage, getJaalCommunities, getJaalGraph, getJaalStats, traceJaalRelationships } from '@/lib/api';
 import { useForceGraph } from '@/hooks/useForceGraph';
-import type { FraudCommunity, GraphNode, GraphEdge } from '@/types';
+import type { FraudCommunity, GraphNode, GraphEdge, JaalTraceResult } from '@/types';
 import type { ForceNode, ForceEdge } from '@/hooks/useForceGraph';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -523,7 +523,7 @@ function NodeDetailPanel({
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AdminJaalPage() {
-  useAuth(); // ensure auth context is loaded
+  const { user } = useAuth();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [communities, setCommunities] = useState<FraudCommunity[]>([]);
@@ -539,11 +539,18 @@ export default function AdminJaalPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('All');
+  const [traceSourceId, setTraceSourceId] = useState('');
+  const [traceTargetId, setTraceTargetId] = useState('');
+  const [traceResult, setTraceResult] = useState<JaalTraceResult | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  // Canvas pan / zoom — start pan at center of default canvas size
-  const [pan, setPan] = useState({ x: 400, y: 300 });
+  // The force layout uses canvas coordinates and already starts at its centre.
+  // Pan is therefore a user-controlled offset, not another centring offset.
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const isPanning = useRef(false);
+  const draggedNodeId = useRef<string | null>(null);
   const lastMouse = useRef({ x: 0, y: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -555,7 +562,7 @@ export default function AdminJaalPage() {
   const rafRef = useRef<number | null>(null);
 
   // ── Force graph ────────────────────────────────────────────────────────────
-  const { simNodes, simEdges, isSimulating, reheat } = useForceGraph(
+  const { simNodes, simEdges, isSimulating, reheat, pinNode } = useForceGraph(
     rawNodes,
     rawEdges,
     { width: canvasSize.width, height: canvasSize.height },
@@ -599,14 +606,16 @@ export default function AdminJaalPage() {
     setRawNodes([]);
     setRawEdges([]);
     setSelectedNodeId(null);
+    setTraceSourceId('');
+    setTraceTargetId('');
+    setTraceResult(null);
     getJaalGraph(selectedCommunity)
       .then(res => {
         const d = res.data;
         setRawNodes(d?.nodes ?? []);
         setRawEdges(d?.edges ?? []);
-        // Centre using the live canvas size (from ref, not stale state)
-        const { width, height } = canvasSizeRef.current;
-        setPan({ x: width / 2, y: height / 2 });
+        // Nodes are initialised around the canvas centre by useForceGraph.
+        setPan({ x: 0, y: 0 });
         setScale(1);
       })
       .catch(console.error)
@@ -623,7 +632,7 @@ export default function AdminJaalPage() {
         const { width, height } = e.contentRect;
         canvasSizeRef.current = { width, height };
         setCanvasSize({ width, height });
-        setPan({ x: width / 2, y: height / 2 });
+        // Keep a user's pan during resize; a newly loaded graph starts at 0,0.
       }
     });
     ro.observe(el);
@@ -668,22 +677,56 @@ export default function AdminJaalPage() {
     setScale(s => Math.min(4, Math.max(0.15, s * factor)));
   }, []);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 0) {
-      isPanning.current = true;
-      lastMouse.current = { x: e.clientX, y: e.clientY };
+  const hitNode = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+    for (const node of [...simNodes].reverse()) {
+      const sx = node.x * scale + pan.x;
+      const sy = node.y * scale + pan.y;
+      const r = nodeRadius(node.riskScore) * scale + 5;
+      if ((mx - sx) ** 2 + (my - sy) ** 2 <= r * r) return { id: node.id, mx, my };
     }
-  }, []);
+    return null;
+  }, [simNodes, pan, scale]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const hit = hitNode(e.clientX, e.clientY);
+    if (hit) {
+      draggedNodeId.current = hit.id;
+      setSelectedNodeId(hit.id);
+      pinNode(hit.id, (hit.mx - pan.x) / scale, (hit.my - pan.y) / scale);
+      return;
+    }
+    isPanning.current = true;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+  }, [hitNode, pan, pinNode, scale]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (draggedNodeId.current) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      pinNode(draggedNodeId.current, (mx - pan.x) / scale, (my - pan.y) / scale);
+      return;
+    }
     if (!isPanning.current) return;
     const dx = e.clientX - lastMouse.current.x;
     const dy = e.clientY - lastMouse.current.y;
     lastMouse.current = { x: e.clientX, y: e.clientY };
     setPan(p => ({ x: p.x + dx, y: p.y + dy }));
-  }, []);
+  }, [pan, pinNode, scale]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (draggedNodeId.current) {
+      draggedNodeId.current = null; // pinned position persists; edges follow the node
+      return;
+    }
     if (isPanning.current && Math.abs(e.movementX) < 3 && Math.abs(e.movementY) < 3) {
       // It was a click — hit-test nodes
       const canvas = canvasRef.current;
@@ -706,6 +749,33 @@ export default function AdminJaalPage() {
     }
     isPanning.current = false;
   }, [simNodes, pan, scale]);
+
+  const exportEvidence = async () => {
+    if (!selectedCommunity) return;
+    setExporting(true);
+    try {
+      const response = await generateJaalEvidencePackage({
+        communityId: selectedCommunity,
+        selectedNodeIds: selectedNodeId ? [selectedNodeId] : [],
+        investigator: user?.name,
+      });
+      if (!response.data) return;
+      const file = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${response.data.id}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } finally { setExporting(false); }
+  };
+
+  const runTrace = async () => {
+    if (!traceSourceId || !traceTargetId || traceSourceId === traceTargetId) return;
+    setTraceLoading(true);
+    try { const response = await traceJaalRelationships(traceSourceId, traceTargetId); setTraceResult(response.data ?? null); }
+    finally { setTraceLoading(false); }
+  };
 
   // ── Stat card helper ───────────────────────────────────────────────────────
   const statCards = useMemo(() => [
@@ -780,17 +850,20 @@ export default function AdminJaalPage() {
               Reheat
             </button>
             <button
+              onClick={exportEvidence}
+              disabled={!selectedCommunity || exporting}
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.375rem',
                 padding: '0.5rem 0.875rem',
                 background: 'rgba(129,140,248,0.1)',
                 border: '1px solid rgba(129,140,248,0.3)',
-                borderRadius: 6, cursor: 'pointer',
+                borderRadius: 6, cursor: exporting ? 'wait' : 'pointer',
                 color: '#818CF8', fontSize: '0.8rem', fontWeight: 700,
+                opacity: !selectedCommunity || exporting ? 0.65 : 1,
               }}
             >
               <Download size={13} />
-              Export
+              {exporting ? 'Packaging…' : 'Evidence package'}
             </button>
           </div>
         </div>
@@ -953,6 +1026,25 @@ export default function AdminJaalPage() {
               ))}
             </div>
 
+            {/* Relationship / money-flow trace */}
+            <div style={{ paddingTop: '0.875rem', borderTop: '1px solid var(--bg-border)' }}>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
+                Trace Money Flow
+              </p>
+              <select value={traceSourceId} onChange={e => setTraceSourceId(e.target.value)} style={{ width: '100%', marginBottom: '0.4rem', padding: '0.4rem', background: 'var(--bg-tertiary)', border: '1px solid var(--bg-border)', borderRadius: 5, color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
+                <option value="">From entity…</option>
+                {simNodes.map(node => <option key={node.id} value={node.id}>{node.label}</option>)}
+              </select>
+              <select value={traceTargetId} onChange={e => setTraceTargetId(e.target.value)} style={{ width: '100%', marginBottom: '0.4rem', padding: '0.4rem', background: 'var(--bg-tertiary)', border: '1px solid var(--bg-border)', borderRadius: 5, color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
+                <option value="">To entity…</option>
+                {simNodes.map(node => <option key={node.id} value={node.id}>{node.label}</option>)}
+              </select>
+              <button onClick={runTrace} disabled={!traceSourceId || !traceTargetId || traceLoading} style={{ width: '100%', padding: '0.42rem', border: '1px solid rgba(34,211,238,.3)', background: 'rgba(34,211,238,.08)', borderRadius: 5, color: '#67E8F9', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, opacity: !traceSourceId || !traceTargetId ? .5 : 1 }}>
+                {traceLoading ? 'Tracing…' : 'Trace path'}
+              </button>
+              {traceResult && <p style={{ margin: '.5rem 0 0', fontSize: '.68rem', color: traceResult.found ? '#86EFAC' : '#FBBF24', lineHeight: 1.4 }}>{traceResult.message}{traceResult.found ? ` ${traceResult.hops} hops.` : ''}</p>}
+            </div>
+
             {/* Zoom */}
             <div>
               <p style={{
@@ -1003,7 +1095,7 @@ export default function AdminJaalPage() {
           </div>
 
           {/* Canvas */}
-          <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: 'grab' }}>
+          <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: draggedNodeId.current ? 'grabbing' : 'grab' }}>
             <canvas
               ref={canvasRef}
               width={canvasSize.width}
@@ -1013,8 +1105,21 @@ export default function AdminJaalPage() {
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
-              onMouseLeave={() => { isPanning.current = false; }}
+              onMouseLeave={() => { isPanning.current = false; draggedNodeId.current = null; }}
             />
+
+            {/* Always-visible graph controls — useful even when the left toolbar is scrolled. */}
+            <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button onClick={() => setScale(value => Math.min(4, value * 1.2))} title="Zoom in" style={graphControlStyle}>
+                <ZoomIn size={16} />
+              </button>
+              <button onClick={() => setScale(value => Math.max(0.15, value / 1.2))} title="Zoom out" style={graphControlStyle}>
+                <ZoomOut size={16} />
+              </button>
+              <button onClick={() => { setScale(1); setPan({ x: 0, y: 0 }); }} title="Centre and reset graph" style={graphControlStyle}>
+                <LocateFixed size={16} />
+              </button>
+            </div>
 
             {/* Loading overlay */}
             {loadingGraph && (
@@ -1062,6 +1167,11 @@ export default function AdminJaalPage() {
                 {simNodes.length} nodes · {simEdges.length} edges
               </div>
             )}
+            {simNodes.length > 0 && (
+              <div style={{ position: 'absolute', bottom: 12, left: 12, padding: '0.3rem 0.625rem', background: 'rgba(8,8,16,.72)', border: '1px solid var(--bg-border)', borderRadius: 6, backdropFilter: 'blur(4px)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                Drag nodes to arrange the investigation view · drag the canvas to pan
+              </div>
+            )}
           </div>
 
           {/* Node detail panel */}
@@ -1084,3 +1194,16 @@ export default function AdminJaalPage() {
     </div>
   );
 }
+
+const graphControlStyle: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  display: 'grid',
+  placeItems: 'center',
+  background: 'rgba(16,16,28,.92)',
+  border: '1px solid rgba(129,140,248,.38)',
+  borderRadius: 8,
+  color: '#C7D2FE',
+  cursor: 'pointer',
+  boxShadow: '0 8px 20px rgba(0,0,0,.24)',
+};
