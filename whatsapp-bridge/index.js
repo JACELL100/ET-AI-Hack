@@ -10,6 +10,8 @@ const {
   useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  downloadMediaMessage,
+  getContentType,
   isJidGroup,
   isJidUser,
   isJidBroadcast,
@@ -28,8 +30,9 @@ try { require("dotenv").config({ path: path.join(__dirname, ".env") }); } catch 
 
 const PORT            = parseInt(process.env.PORT || "3001", 10);
 const AUTH_DIR        = path.join(__dirname, ".baileys_auth");
-const MAX_CHATS       = 40;   // cap returned to the backend
-const MAX_MSGS_STORED = 40;   // cap per-chat in-memory
+const MAX_CHATS       = parseInt(process.env.MAX_CHATS || "5000", 10);
+const MAX_MSGS_STORED = parseInt(process.env.MAX_MSGS_STORED || "250", 10);
+const MAX_MEDIA_BYTES = parseInt(process.env.MAX_MEDIA_BYTES || `${2 * 1024 * 1024}`, 10);
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:8000")
   .split(",").map((o) => o.trim());
 
@@ -68,34 +71,156 @@ let sock           = null;
 let chatStore      = {};   // jid → chat metadata
 let messageStore   = {};   // jid → Message[]
 let syncRetryTimer = null;
+let reconnectTimer = null;
 
 // ── JID helpers ────────────────────────────────────────────────────────────
 function isRealChat(jid) {
   if (!jid) return false;
   if (isJidBroadcast(jid))   return false;
-  if (isJidNewsletter(jid))  return false;
   if (jid === "status@broadcast") return false;
-  if (jid.endsWith("@lid"))  return false;
-  return isJidUser(jid) || isJidGroup(jid);
+  return isJidUser(jid) || isJidGroup(jid) || isJidNewsletter(jid) || jid.endsWith("@lid");
+}
+
+function chatKind(jid, chat = {}) {
+  if (isJidNewsletter(jid)) return "channel";
+  if (isJidGroup(jid)) {
+    if (chat.isCommunity || chat.linkedParent || chat.parentGroupJid) return "community";
+    return "group";
+  }
+  return "personal";
+}
+
+function unwrapMessage(msg) {
+  let current = msg || {};
+  for (let i = 0; i < 5; i++) {
+    if (current.ephemeralMessage?.message) current = current.ephemeralMessage.message;
+    else if (current.viewOnceMessage?.message) current = current.viewOnceMessage.message;
+    else if (current.viewOnceMessageV2?.message) current = current.viewOnceMessageV2.message;
+    else if (current.documentWithCaptionMessage?.message) current = current.documentWithCaptionMessage.message;
+    else break;
+  }
+  return current;
+}
+
+function isUserVisibleMessage(msg) {
+  const type = getContentType(unwrapMessage(msg));
+  return !!type && ![
+    "protocolMessage",
+    "senderKeyDistributionMessage",
+    "historySyncNotification",
+    "appStateSyncKeyShare",
+    "messageContextInfo",
+  ].includes(type);
 }
 
 // ── Extract text from any message type ────────────────────────────────────
 function extractBody(msg) {
-  if (!msg) return "";
+  const m = unwrapMessage(msg);
+  if (!m) return "";
   return (
-    msg.conversation                                          ||
-    msg.extendedTextMessage?.text                            ||
-    msg.imageMessage?.caption                                ||
-    msg.videoMessage?.caption                                ||
-    msg.documentMessage?.caption                             ||
-    msg.buttonsMessage?.contentText                          ||
-    msg.buttonsResponseMessage?.selectedDisplayText          ||
-    msg.listMessage?.description                             ||
-    msg.listResponseMessage?.title                           ||
-    msg.templateMessage?.hydratedTemplate?.hydratedContentText ||
-    msg.ephemeralMessage?.message?.conversation              ||
+    m.conversation                                          ||
+    m.extendedTextMessage?.text                            ||
+    m.imageMessage?.caption                                ||
+    m.videoMessage?.caption                                ||
+    m.documentMessage?.caption                             ||
+    m.buttonsMessage?.contentText                          ||
+    m.buttonsResponseMessage?.selectedDisplayText          ||
+    m.listMessage?.description                             ||
+    m.listResponseMessage?.title                           ||
+    m.templateMessage?.hydratedTemplate?.hydratedContentText ||
+    m.pollCreationMessage?.name                            ||
+    m.pollUpdateMessage?.name                              ||
     ""
   );
+}
+
+function extractMedia(msg) {
+  const m = unwrapMessage(msg);
+  const contentType = getContentType(m) || "unknown";
+  const mediaNode =
+    m.imageMessage || m.videoMessage || m.audioMessage || m.documentMessage ||
+    m.stickerMessage || m.ptvMessage || null;
+
+  if (mediaNode) {
+    const kind = contentType.replace("Message", "").replace("ptv", "video");
+    return {
+      kind,
+      contentType,
+      mimeType: mediaNode.mimetype || mediaNode.mimeType || null,
+      fileName: mediaNode.fileName || null,
+      caption: mediaNode.caption || "",
+      fileLength: Number(mediaNode.fileLength?.toString?.() || mediaNode.fileLength || 0) || null,
+      seconds: mediaNode.seconds || null,
+      width: mediaNode.width || null,
+      height: mediaNode.height || null,
+      hasPreview: !!mediaNode.jpegThumbnail,
+      dataUrl: null,
+    };
+  }
+
+  if (m.locationMessage || m.liveLocationMessage) {
+    const loc = m.locationMessage || m.liveLocationMessage;
+    return {
+      kind: "location",
+      contentType,
+      mimeType: null,
+      caption: loc.name || loc.address || "",
+      latitude: loc.degreesLatitude,
+      longitude: loc.degreesLongitude,
+      dataUrl: null,
+    };
+  }
+
+  if (m.contactMessage || m.contactsArrayMessage) {
+    return {
+      kind: "contact",
+      contentType,
+      mimeType: null,
+      caption: m.contactMessage?.displayName || `${m.contactsArrayMessage?.contacts?.length || 0} contacts`,
+      dataUrl: null,
+    };
+  }
+
+  return {
+    kind: contentType === "conversation" || contentType === "extendedTextMessage" ? "text" : contentType.replace("Message", ""),
+    contentType,
+    mimeType: null,
+    caption: "",
+    dataUrl: null,
+  };
+}
+
+function messagePreview(body, media) {
+  if (body) return body;
+  if (!media || media.kind === "text") return "";
+  if (media.kind === "location") return media.caption ? `Location: ${media.caption}` : "Location shared";
+  if (media.kind === "contact") return media.caption ? `Contact: ${media.caption}` : "Contact shared";
+  if (media.fileName) return `${media.kind}: ${media.fileName}`;
+  return `${media.kind} message`;
+}
+
+function shouldInlineMedia(media) {
+  if (!media) return false;
+  if (!["image", "sticker", "video", "audio", "document"].includes(media.kind)) return false;
+  if (media.fileLength && media.fileLength > MAX_MEDIA_BYTES) return false;
+  return ["image", "sticker"].includes(media.kind) || (media.fileLength && media.fileLength <= MAX_MEDIA_BYTES);
+}
+
+async function maybeAttachMedia(raw, media) {
+  if (!sock || !shouldInlineMedia(media)) return media;
+  try {
+    const buffer = await downloadMediaMessage(
+      raw,
+      "buffer",
+      {},
+      { logger, reuploadRequest: sock.updateMediaMessage }
+    );
+    if (!buffer || buffer.length > MAX_MEDIA_BYTES) return media;
+    const mime = media.mimeType || "application/octet-stream";
+    return { ...media, dataUrl: `data:${mime};base64,${buffer.toString("base64")}` };
+  } catch (err) {
+    return { ...media, downloadError: err.message?.slice(0, 120) || "media unavailable" };
+  }
 }
 
 // ── Upsert helpers ─────────────────────────────────────────────────────────
@@ -104,10 +229,10 @@ function upsertChat(chat) {
   chatStore[chat.id] = { ...(chatStore[chat.id] || {}), ...chat };
 }
 
-function upsertMessage(raw) {
-  if (!raw?.message) return;
+async function upsertMessage(raw) {
+  if (!raw?.message || !isUserVisibleMessage(raw.message)) return;
   const body   = extractBody(raw.message);
-  if (!body)   return;
+  const media  = await maybeAttachMedia(raw, extractMedia(raw.message));
   const chatId = raw.key.remoteJid || "";
   if (!isRealChat(chatId)) return;
 
@@ -116,16 +241,28 @@ function upsertMessage(raw) {
 
   if (arr.some((m) => m.id === raw.key.id)) return; // dedup
 
+  const timestamp = typeof raw.messageTimestamp === "number"
+    ? raw.messageTimestamp
+    : parseInt(raw.messageTimestamp?.toString() || "0");
+
   arr.push({
     id:        raw.key.id,
     from:      chatId,
     author:    raw.key.participant || (raw.key.fromMe ? "me" : chatId),
     body,
-    timestamp: typeof raw.messageTimestamp === "number"
-      ? raw.messageTimestamp
-      : parseInt(raw.messageTimestamp?.toString() || "0"),
+    preview:   messagePreview(body, media),
+    timestamp,
     fromMe:    raw.key.fromMe || false,
-    type:      "chat",
+    type:      media.kind || "text",
+    media,
+  });
+
+  const existingChat = chatStore[chatId] || {};
+  upsertChat({
+    id: chatId,
+    name: existingChat.name || existingChat.subject || chatId.split("@")[0],
+    conversationTimestamp: Math.max(timestamp || 0, existingChat.conversationTimestamp || 0),
+    unreadCount: existingChat.unreadCount || 0,
   });
 
   // Keep only the MAX_MSGS_STORED most recent
@@ -142,12 +279,24 @@ function getMessages(chatId, limit = MAX_MSGS_STORED) {
     .slice(0, Math.min(limit, MAX_MSGS_STORED));
 }
 
+function lastStoredMessage(chatId) {
+  return getMessages(chatId, 1)[0] || null;
+}
+
 function logStats(label = "") {
   const all      = Object.values(chatStore);
   const personal = all.filter((c) => isJidUser(c.id)).length;
   const groups   = all.filter((c) => isJidGroup(c.id)).length;
   const msgs     = Object.values(messageStore).reduce((s, a) => s + a.length, 0);
   console.log(`[WA]${label ? " " + label + " |" : ""} Store: ${all.length} chats (${personal} personal, ${groups} groups), ${msgs} messages`);
+}
+
+function scheduleReconnect(activeSocket, delayMs) {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (sock === activeSocket) startWhatsApp();
+  }, delayMs);
 }
 
 // ── Attempt AppState resync to recover chats without full re-auth ──────────
@@ -227,9 +376,10 @@ async function startWhatsApp() {
     version,
     auth: state,
     logger,
+    // Ask WhatsApp for history during the initial link. Existing lightweight
+    // sessions must pair again before WhatsApp sends historical messages.
     browser: ["RAKSHA AI", "Chrome", "1.0.0"],
-    // false = skip full history, still gets recent chats on a clean session
-    syncFullHistory: false,
+    syncFullHistory: true,
     // Suppress SessionError / MessageCounterError for stale messages
     getMessage: async (key) => {
       const msgs = messageStore[key.remoteJid || ""] || [];
@@ -237,9 +387,12 @@ async function startWhatsApp() {
       return found ? { conversation: found.body } : undefined;
     },
   });
+  const activeSocket = sock;
+  const isActiveSocket = () => sock === activeSocket;
 
   // ── Connection lifecycle ────────────────────────────────────────────────
-  sock.ev.on("connection.update", async (update) => {
+  activeSocket.ev.on("connection.update", async (update) => {
+    if (!isActiveSocket()) return;
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
@@ -254,7 +407,7 @@ async function startWhatsApp() {
       clientReady = true;
       lastQrDataUrl = null;
       try {
-        const me   = sock.user;
+        const me   = activeSocket.user;
         connectedPhone = me?.id?.split(":")[0] || me?.id?.split("@")[0] || null;
         console.log(`[WA] ✅ Connected! Phone: +${connectedPhone}`);
       } catch { connectedPhone = "unknown"; }
@@ -279,28 +432,37 @@ async function startWhatsApp() {
       if (code === DisconnectReason.loggedOut) {
         connectedPhone = null; lastQrDataUrl = null;
         chatStore = {}; messageStore = {};
+        clearAuthFiles();
         broadcast("disconnected", { reason: "logged_out" });
-        setTimeout(() => startWhatsApp(), 2000);
+        scheduleReconnect(activeSocket, 2000);
       } else if (shouldReconnect) {
         broadcast("loading", { percent: 0, message: "Reconnecting…" });
-        setTimeout(() => startWhatsApp(), 3000);
+        scheduleReconnect(activeSocket, 3000);
       }
     }
   });
 
-  sock.ev.on("creds.update", saveCreds);
+  activeSocket.ev.on("creds.update", (...args) => {
+    if (isActiveSocket()) saveCreds(...args);
+  });
 
   // ── Chat events ─────────────────────────────────────────────────────────
-  sock.ev.on("chats.set", ({ chats = [], isLatest }) => {
+  activeSocket.ev.on("chats.set", ({ chats = [], isLatest }) => {
+    if (!isActiveSocket()) return;
     let added = 0;
     for (const c of chats) { upsertChat(c); added++; }
     logStats(`chats.set (${added} chats, isLatest=${isLatest})`);
   });
 
-  sock.ev.on("chats.upsert",  (chats = [])   => chats.forEach(upsertChat));
-  sock.ev.on("chats.update",  (updates = [])  => updates.forEach(upsertChat));
+  activeSocket.ev.on("chats.upsert",  (chats = [])   => {
+    if (isActiveSocket()) chats.forEach(upsertChat);
+  });
+  activeSocket.ev.on("chats.update",  (updates = [])  => {
+    if (isActiveSocket()) updates.forEach(upsertChat);
+  });
 
-  sock.ev.on("contacts.upsert", (contacts = []) => {
+  activeSocket.ev.on("contacts.upsert", (contacts = []) => {
+    if (!isActiveSocket()) return;
     for (const c of contacts) {
       if (!c.id || !isRealChat(c.id)) continue;
       if (!chatStore[c.id]) {
@@ -315,7 +477,8 @@ async function startWhatsApp() {
   });
 
   // ── History / message events ────────────────────────────────────────────
-  sock.ev.on("messaging-history.set", ({ chats = [], contacts = [], messages = [], isLatest }) => {
+  activeSocket.ev.on("messaging-history.set", ({ chats = [], contacts = [], messages = [], isLatest }) => {
+    if (!isActiveSocket()) return;
     chats.forEach(upsertChat);
 
     for (const c of contacts) {
@@ -330,29 +493,29 @@ async function startWhatsApp() {
       }
     }
 
-    messages.forEach(upsertMessage);
-    logStats(`messaging-history.set (isLatest=${isLatest})`);
+    Promise.all(messages.map(upsertMessage)).then(() => logStats(`messaging-history.set (isLatest=${isLatest})`));
   });
 
-  sock.ev.on("messages.set", ({ messages = [] }) => {
-    messages.forEach(upsertMessage);
-    const total = Object.values(messageStore).reduce((s, a) => s + a.length, 0);
-    console.log(`[WA] messages.set: ${total} messages total`);
+  activeSocket.ev.on("messages.set", ({ messages = [] }) => {
+    if (!isActiveSocket()) return;
+    Promise.all(messages.map(upsertMessage)).then(() => {
+      const total = Object.values(messageStore).reduce((s, a) => s + a.length, 0);
+      console.log(`[WA] messages.set: ${total} messages total`);
+    });
   });
 
-  sock.ev.on("messages.upsert", ({ messages = [], type }) => {
+  activeSocket.ev.on("messages.upsert", async ({ messages = [], type }) => {
+    if (!isActiveSocket()) return;
     for (const msg of messages) {
-      upsertMessage(msg);
+      await upsertMessage(msg);
       if (type === "notify" && msg.message) {
         const chatId = msg.key.remoteJid || "";
         if (isRealChat(chatId)) {
-          const body = extractBody(msg.message);
-          if (body) {
+          const saved = (messageStore[chatId] || []).find((m) => m.id === msg.key.id);
+          if (saved) {
             broadcast("message", {
-              id: msg.key.id, from: chatId,
-              chatName: chatId.split("@")[0], body,
-              timestamp: msg.messageTimestamp,
-              fromMe: msg.key.fromMe || false, type: "chat",
+              ...saved,
+              chatName: chatStore[chatId]?.name || chatId.split("@")[0],
             });
           }
         }
@@ -369,6 +532,7 @@ app.get("/status", (_req, res) => res.json({
   connected: clientReady,
   qrReady:   !!lastQrDataUrl,
   phone:     connectedPhone,
+  historySyncEnabled: true,
 }));
 
 app.get("/chats", async (_req, res) => {
@@ -393,6 +557,7 @@ app.get("/chats", async (_req, res) => {
       .slice(0, MAX_CHATS);
 
     const result = sorted.map((chat) => ({
+      kind:         chatKind(chat.id, chat),
       id:           chat.id,
       name:         chat.name || chat.subject || chat.id?.split("@")[0] || "Unknown",
       isGroup:      isJidGroup(chat.id),
@@ -400,8 +565,9 @@ app.get("/chats", async (_req, res) => {
         ? chat.conversationTimestamp
         : parseInt(chat.conversationTimestamp?.toString() || "0") || null,
       unreadCount:  chat.unreadCount || 0,
-      lastMessage:  null,
+      lastMessage:  lastStoredMessage(chat.id)?.preview || null,
       messageCount: (messageStore[chat.id] || []).length,
+      hasMedia:     (messageStore[chat.id] || []).some((m) => m.media && m.media.kind !== "text"),
     }));
 
     logStats(`/chats → returning ${result.length} of ${all.length}`);
@@ -427,6 +593,7 @@ app.get("/chats/:chatId/messages", (req, res) => {
     chatId,
     chatName: chatMeta?.name || chatMeta?.subject || chatId.split("@")[0] || "Unknown",
     isGroup:  isJidGroup(chatId),
+    kind:     chatKind(chatId, chatMeta),
     messages,
     totalFetched: messages.length,
   });
@@ -445,6 +612,7 @@ app.post("/disconnect", async (_req, res) => {
 app.post("/clear-session", async (_req, res) => {
   console.log("[WA] 🔄 Clear session requested");
   if (syncRetryTimer) { clearTimeout(syncRetryTimer); syncRetryTimer = null; }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (sock) { try { sock.end(undefined); } catch {} sock = null; }
   clientReady = false; connectedPhone = null; lastQrDataUrl = null;
   chatStore = {}; messageStore = {};
@@ -457,6 +625,7 @@ app.post("/clear-session", async (_req, res) => {
 });
 
 app.post("/reinit", async (_req, res) => {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
   if (sock) { try { sock.end(undefined); } catch {} }
   clientReady = false; connectedPhone = null; lastQrDataUrl = null;
   chatStore = {}; messageStore = {};
@@ -470,6 +639,7 @@ app.get("/debug", (_req, res) => {
   res.json({
     connected:        clientReady,
     phone:            connectedPhone,
+    historySyncEnabled: true,
     totalChats:       all.length,
     personal:         all.filter((c) => isJidUser(c.id)).length,
     groups:           all.filter((c) => isJidGroup(c.id)).length,

@@ -73,6 +73,12 @@ Analyse EVERY message carefully and flag any that show signs of:
 • **THREAT** — blackmail, extortion, intimidation, threats of violence or legal action
 • **SUSPICIOUS** — anything else that seems off or potentially harmful
 
+Messages may include media metadata such as image/video captions, document file
+names, locations, contacts, polls, stickers, or audio notes. Treat captions,
+file names, shared links, locations, QR/payment images, invoices/APKs, and
+identity documents as evidence. If a media-only message has no readable text,
+flag it only when its metadata or surrounding context is suspicious.
+
 Respond with ONLY valid JSON (no markdown, no code fences) in this exact format:
 {
   "overall_risk": "safe" | "low" | "medium" | "high" | "critical",
@@ -169,11 +175,42 @@ def _format_messages_for_prompt(messages: list[dict]) -> str:
     lines = []
     for i, msg in enumerate(messages):
         sender = "YOU" if msg.get("fromMe") else (msg.get("author") or msg.get("from", "Other"))
-        body = (msg.get("body") or "").strip()
+        body = _message_text_for_analysis(msg)
         if not body:
             continue
         lines.append(f"[{i}] {sender}: {body}")
     return "\n".join(lines)
+
+
+def _message_text_for_analysis(msg: dict) -> str:
+    """Build an analysis string from text plus safe media metadata."""
+    body = (msg.get("body") or "").strip()
+    preview = (msg.get("preview") or "").strip()
+    media = msg.get("media") or {}
+    parts: list[str] = []
+
+    if body:
+        parts.append(body)
+    elif preview:
+        parts.append(preview)
+
+    kind = media.get("kind") or msg.get("type")
+    if kind and kind != "text":
+        parts.append(f"[media: {kind}]")
+
+    for label, key in (
+        ("caption", "caption"),
+        ("file", "fileName"),
+        ("mime", "mimeType"),
+    ):
+        value = media.get(key)
+        if value:
+            parts.append(f"{label}: {str(value)[:180]}")
+
+    if media.get("latitude") is not None and media.get("longitude") is not None:
+        parts.append(f"location: {media.get('latitude')},{media.get('longitude')}")
+
+    return " | ".join(dict.fromkeys(parts))
 
 
 def _parse_groq_response(raw: str) -> dict:
@@ -223,23 +260,22 @@ def analyse_messages_with_groq(messages: list[dict]) -> dict:
             "groq_error": "No API key",
         }
 
-    # Filter to text messages only, cap at ~50 for token budget
-    text_msgs = [m for m in messages if (m.get("body") or "").strip()]
-    logger.info("Groq analysis: %d total messages, %d text messages", len(messages), len(text_msgs))
+    # Filter to messages with text or media metadata, cap at ~80 for token budget.
+    scannable_msgs = [m for m in messages if _message_text_for_analysis(m)]
+    logger.info("Groq analysis: %d total messages, %d scannable messages", len(messages), len(scannable_msgs))
 
-    if not text_msgs:
+    if not scannable_msgs:
         logger.warning("No text messages to analyse — Groq will NOT be called for this chat")
         return {
             "overall_risk": "safe",
-            "summary": "No messages found in this chat yet. WhatsApp history may still be syncing — try again in a few seconds.",
+            "summary": "No readable messages or media metadata found in this chat yet. WhatsApp history may still be syncing — try again in a few seconds.",
             "key_findings": ["No messages were found in the message store for this chat. This usually means the WhatsApp sync hasn't delivered message history yet."],
             "flagged_messages": [],
             "groq_called": False,
             "groq_error": "Empty message store",
         }
 
-    # Batch: take last 50 messages (most recent are most relevant)
-    batch = text_msgs[-50:]
+    batch = sorted(scannable_msgs, key=lambda m: m.get("timestamp") or 0)[-80:]
     conversation_text = _format_messages_for_prompt(batch)
 
     logger.info("Calling Groq model '%s' with %d messages (%d chars)",
@@ -265,7 +301,10 @@ def analyse_messages_with_groq(messages: list[dict]) -> dict:
         for fm in result.get("flagged_messages", []):
             idx = fm.get("message_index", -1)
             if 0 <= idx < len(batch):
-                fm["message_body"] = (batch[idx].get("body") or "")[:300]
+                fm["message_body"] = _message_text_for_analysis(batch[idx])[:500]
+                media = batch[idx].get("media") or {}
+                fm["message_type"] = batch[idx].get("type") or media.get("kind") or "text"
+                fm["media_kind"] = media.get("kind")
             else:
                 fm["message_body"] = ""
 
@@ -295,7 +334,7 @@ async def analyse_single_chat(chat_id: str, limit: int = 100) -> dict:
 
     # Fetch messages from bridge
     chat_data = await get_bridge_messages(chat_id, limit)
-    messages = chat_data.get("messages", [])
+    messages = sorted(chat_data.get("messages", []), key=lambda m: m.get("timestamp") or 0)
     chat_name = chat_data.get("chatName", "Unknown")
 
     # Run Groq analysis (sync — fast enough for Groq)
@@ -311,6 +350,7 @@ async def analyse_single_chat(chat_id: str, limit: int = 100) -> dict:
         "flagged_messages": analysis.get("flagged_messages", []),
         "key_findings": analysis.get("key_findings", []),
         "total_messages_scanned": len(messages),
+        "media_messages_scanned": sum(1 for m in messages if (m.get("media") or {}).get("kind") not in (None, "text")),
         "flagged_count": len(analysis.get("flagged_messages", [])),
         "scan_time_ms": elapsed_ms,
         "groq_called": analysis.get("groq_called", False),

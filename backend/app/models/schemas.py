@@ -385,11 +385,31 @@ class WhatsAppStatus(BaseModel):
 
 class WhatsAppChat(BaseModel):
     id: str
+    kind: Optional[str] = None
     name: str
     isGroup: bool = False
     timestamp: Optional[int] = None
     unreadCount: int = 0
     lastMessage: Optional[str] = None
+    messageCount: int = 0
+    hasMedia: bool = False
+
+
+class WhatsAppMedia(BaseModel):
+    kind: str = "text"
+    contentType: Optional[str] = None
+    mimeType: Optional[str] = None
+    fileName: Optional[str] = None
+    caption: str = ""
+    fileLength: Optional[int] = None
+    seconds: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    hasPreview: bool = False
+    dataUrl: Optional[str] = None
+    downloadError: Optional[str] = None
 
 
 class WhatsAppMessage(BaseModel):
@@ -397,9 +417,11 @@ class WhatsAppMessage(BaseModel):
     from_field: str = Field(default="", alias="from")
     author: str = ""
     body: str = ""
+    preview: str = ""
     timestamp: int = 0
     fromMe: bool = False
     type: str = "chat"
+    media: Optional[WhatsAppMedia] = None
 
     model_config = {"populate_by_name": True}
 
@@ -411,6 +433,8 @@ class FlaggedMessage(BaseModel):
     threat_type: str = "SUSPICIOUS"          # SCAM | PHISHING | FINANCIAL_FRAUD | IDENTITY_THEFT | SOCIAL_ENGINEERING | THREAT | SUSPICIOUS
     explanation: str = ""
     recommendation: str = ""
+    message_type: Optional[str] = None
+    media_kind: Optional[str] = None
 
 
 class ChatAnalysisResult(BaseModel):
@@ -421,6 +445,7 @@ class ChatAnalysisResult(BaseModel):
     flagged_messages: list[FlaggedMessage] = Field(default_factory=list)
     key_findings: list[str] = Field(default_factory=list)
     total_messages_scanned: int = 0
+    media_messages_scanned: int = 0
     flagged_count: int = 0
     scan_time_ms: int = 0
 

@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchProfile = async (sessionUser: SupabaseUser) => {
     try {
       const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
-      const isAdminRoute = currentPath.startsWith("/admin") || ["/sentinel", "/jaal", "/drishti"].some(p => currentPath.startsWith(p));
+      const isAdminRoute = currentPath.startsWith("/admin") || ["/jaal", "/drishti"].some(p => currentPath.startsWith(p));
       const intent = localStorage.getItem("login_intent");
 
       const citizenActiveFlag = localStorage.getItem("raksha_citizen_active");
@@ -173,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async (targetPortal?: "citizen" | "admin" | "all") => {
     try {
       const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
-      const isAdminRoute = currentPath.startsWith("/admin") || ["/sentinel", "/jaal", "/drishti"].some(p => currentPath.startsWith(p));
+      const isAdminRoute = currentPath.startsWith("/admin") || ["/jaal", "/drishti"].some(p => currentPath.startsWith(p));
       const isTargetAdmin = targetPortal === "admin" || (targetPortal !== "citizen" && isAdminRoute);
 
       if (isTargetAdmin) {

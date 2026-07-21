@@ -15,6 +15,7 @@ import {
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useAuth } from "@/components/providers/AuthContext";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { CitizenSidebar } from "@/components/layout/CitizenSidebar";
 
 // Leaflet must be loaded client-side only (no SSR)
 const LeafletMap = dynamic(() => import("@/components/ui/DrishtiLeafletMap"), { ssr: false, loading: () => (
@@ -461,10 +462,9 @@ function resolveCoords(district: string, state: string, lat?: number, lng?: numb
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        // Not logged in at all — go to admin login
+        // Not logged in at all — go to admin login.
         window.location.href = "/admin";
       } else if (!user.isAdmin) {
-        // Logged in as citizen but not admin — send back to citizen portal
         window.location.href = "/dashboard";
       }
     }
@@ -570,7 +570,7 @@ function resolveCoords(district: string, state: string, lat?: number, lng?: numb
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--bg-primary)" }}>
-      <AdminSidebar />
+      {user.isAdmin ? <AdminSidebar /> : <CitizenSidebar />}
       {showReportModal && (
         <CitizenReportModal
           onClose={() => setShowReportModal(false)}

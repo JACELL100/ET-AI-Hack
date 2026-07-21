@@ -14,6 +14,7 @@ export const citizenNavItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Citizen Shield (KAVACH)", href: "/kavach", icon: MessageCircle, color: "#22D3EE" },
   { label: "Verify Banknotes (NETRA)", href: "/netra", icon: Eye, color: "#10B981" },
+  { label: "SENTINEL", href: "/sentinel", icon: Shield, color: "#E63A1E" },
 ];
 
 export function CitizenSidebar() {

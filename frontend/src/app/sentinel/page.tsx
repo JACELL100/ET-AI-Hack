@@ -15,6 +15,7 @@ import type { SessionCompleteData, VoiceAnalysisData } from "@/hooks/useSentinel
 import { analyseText as apiAnalyseText, analyseAudio as apiAnalyseAudio } from "@/lib/api";
 import { useAuth } from "@/components/providers/AuthContext";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { CitizenSidebar } from "@/components/layout/CitizenSidebar";
 
 /* ── Scenarios (fetched from API or fallback) ───────────────────────── */
 const FALLBACK_SCENARIOS = [
@@ -50,14 +51,11 @@ export default function SentinelPage() {
   const [showReport, setShowReport] = useState(false);
   const [showAlertPanel, setShowAlertPanel] = useState(false);
 
-  // Admin-only page — redirect non-admin users appropriately
+  // This root module is available from the citizen navigation.
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        window.location.href = "/admin";
-      } else if (!user.isAdmin) {
-        // Citizen user — send them back to citizen portal
-        window.location.href = "/dashboard";
+        window.location.href = "/login";
       }
     }
   }, [user, loading]);
@@ -123,17 +121,17 @@ export default function SentinelPage() {
   const activeIntents = stream.intents.length > 0 ? stream.intents : sidebarResult?.intents_detected || [];
 
   // Show loading while verifying credentials
-  if (loading || !user || !user.isAdmin) {
+  if (loading || !user) {
     return (
       <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
-        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying Admin credentials...</div>
+        <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>Verifying your account...</div>
       </div>
     );
   }
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
-      <AdminSidebar />
+      {user.isAdmin ? <AdminSidebar /> : <CitizenSidebar />}
       <div style={{ marginLeft: "240px", flex: 1, minWidth: 0 }}>
         {/* ── Page Header ─────────────────────────────────────────────── */}
         <div style={{ padding: "1.5rem 2rem 0", maxWidth: "1400px", margin: "0 auto" }}>

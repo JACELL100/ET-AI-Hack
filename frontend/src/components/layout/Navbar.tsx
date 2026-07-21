@@ -50,6 +50,14 @@ export function Navbar() {
     { label: "Modules", href: "/#modules" },
     { label: "Dashboard", href: dashboardHref },
     { label: "Citizen Shield", href: user ? "/kavach" : "/login" },
+    { label: "NETRA", href: "/netra" },
+    { label: "SENTINEL", href: "/sentinel" },
+    ...(user?.isAdmin
+      ? [
+          { label: "JAAL", href: "/admin/jaal" },
+          { label: "DRISHTI", href: "/admin/drishti" },
+        ]
+      : []),
   ];
 
   return (
@@ -205,7 +213,7 @@ export function Navbar() {
                   Portal
                 </Link>
                 <button
-                  onClick={logout}
+                  onClick={() => logout()}
                   className="btn btn-primary btn-sm"
                   style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.5rem 0.75rem" }}
                 >

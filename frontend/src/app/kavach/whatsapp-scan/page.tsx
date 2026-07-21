@@ -10,6 +10,8 @@ import {
   ChevronDown, ChevronRight, Search, Users, User as UserIcon,
   Wifi, WifiOff, Loader2, Smartphone, ArrowLeft, RefreshCw,
   MessageSquare, Clock, Zap, BarChart3, FileWarning, Info,
+  Image as ImageIcon, Video, Mic, FileText, MapPin, Contact,
+  Radio,
 } from "lucide-react";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useAuth } from "@/components/providers/AuthContext";
@@ -21,9 +23,11 @@ import {
   analyseAllWhatsAppChats,
   disconnectWhatsApp,
   clearWhatsAppSession,
+  getWhatsAppMessages,
 } from "@/lib/api";
 import type {
   WhatsAppChat,
+  WhatsAppMessage,
   ChatAnalysisResult,
   BatchAnalysisResult,
   FlaggedMessage,
@@ -62,6 +66,36 @@ function ThreatBadge({ type }: { type: string }) {
   );
 }
 
+const chatKindMeta = {
+  personal: { label: "Personal", icon: UserIcon, color: "#22D3EE", bg: "rgba(34,211,238,0.15)" },
+  group: { label: "Group", icon: Users, color: "#818CF8", bg: "rgba(129,140,248,0.15)" },
+  community: { label: "Community", icon: Network, color: "#A78BFA", bg: "rgba(167,139,250,0.15)" },
+  channel: { label: "Channel", icon: Radio, color: "#F59E0B", bg: "rgba(245,158,11,0.15)" },
+} as const;
+
+function formatTime(timestamp?: number | null) {
+  if (!timestamp) return "";
+  return new Date(timestamp * 1000).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function messageLabel(message: WhatsAppMessage) {
+  return message.body || message.preview || message.media?.caption || message.media?.fileName || `${message.media?.kind || message.type} message`;
+}
+
+function isDisplayMessage(message: WhatsAppMessage) {
+  return ![
+    "protocol",
+    "senderKeyDistribution",
+    "historySyncNotification",
+    "appStateSyncKeyShare",
+  ].includes(message.type || message.media?.kind || "");
+}
+
 // ── Main page ───────────────────────────────────────────────────────────────
 
 type PageState = "connect" | "chatlist" | "scanning" | "results";
@@ -74,6 +108,9 @@ export default function WhatsAppScanPage() {
   const [connectedPhone, setConnectedPhone] = useState<string | null>(null);
   const [chats, setChats] = useState<WhatsAppChat[]>([]);
   const [chatSearch, setChatSearch] = useState("");
+  const [selectedChat, setSelectedChat] = useState<WhatsAppChat | null>(null);
+  const [selectedMessages, setSelectedMessages] = useState<WhatsAppMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [scanningChatName, setScanningChatName] = useState("");
   const [scanProgress, setScanProgress] = useState({ current: 0, total: 0 });
   const [singleResult, setSingleResult] = useState<ChatAnalysisResult | null>(null);
@@ -86,6 +123,11 @@ export default function WhatsAppScanPage() {
 
   const wsRef = useRef<WebSocket | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const selectedChatIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChat?.id || null;
+  }, [selectedChat]);
 
   // ── Auth check ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -171,6 +213,26 @@ export default function WhatsAppScanPage() {
           setSessionStale(false);
         }
         break;
+      case "message": {
+        const incoming = msg.data as unknown as WhatsAppMessage & { chatName?: string };
+        setChats((prev) => prev.map((chat) => (
+          chat.id === incoming.from
+            ? {
+              ...chat,
+              lastMessage: messageLabel(incoming),
+              messageCount: (chat.messageCount || 0) + 1,
+              hasMedia: chat.hasMedia || (!!incoming.media?.kind && incoming.media.kind !== "text"),
+              timestamp: incoming.timestamp || chat.timestamp,
+            }
+            : chat
+        )));
+        setSelectedMessages((prev) => (
+          selectedChatIdRef.current === incoming.from && !prev.some((m) => m.id === incoming.id)
+            ? [...prev, incoming].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+            : prev
+        ));
+        break;
+      }
     }
   }, []);
 
@@ -196,6 +258,9 @@ export default function WhatsAppScanPage() {
       const chatList = res.data as WhatsAppChat[] | undefined;
       if (chatList && chatList.length > 0) {
         setChats(chatList);
+        if (!selectedChat && chatList.length > 0) {
+          openChat(chatList[0], false);
+        }
         setError(null);
         // If ALL chats are groups and no personal contacts after multiple attempts
         // it likely means the session is stale (init-query timeout)
@@ -237,6 +302,34 @@ export default function WhatsAppScanPage() {
     } catch (err) {
       setError("Analysis failed. Check Groq API key and bridge connection.");
       setPageState("chatlist");
+    }
+  }
+
+  async function openChat(chat: WhatsAppChat, clearResult = true) {
+    setSelectedChat(chat);
+    setLoadingMessages(true);
+    setError(null);
+    if (clearResult) {
+      setSingleResult(null);
+      setBatchResult(null);
+    }
+
+    try {
+      const res = await getWhatsAppMessages(chat.id, 250);
+      if (res.data) {
+        const messages = [...(res.data.messages || [])]
+          .filter(isDisplayMessage)
+          .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        setSelectedMessages(messages);
+      } else {
+        setSelectedMessages([]);
+        setError(res.error || "Failed to load messages for this chat.");
+      }
+    } catch {
+      setSelectedMessages([]);
+      setError("Failed to load messages. Try refreshing WhatsApp sync.");
+    } finally {
+      setLoadingMessages(false);
     }
   }
 
@@ -309,7 +402,7 @@ export default function WhatsAppScanPage() {
 
   // ── Filtered chats ───────────────────────────────────────────────────
   const filteredChats = chats.filter((c) =>
-    c.name.toLowerCase().includes(chatSearch.toLowerCase())
+    `${c.name} ${c.kind || ""} ${c.lastMessage || ""}`.toLowerCase().includes(chatSearch.toLowerCase())
   );
 
   if (authLoading || !user) {
@@ -480,11 +573,14 @@ export default function WhatsAppScanPage() {
 
             {/* Stats + Scan All */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-              <div style={{ display: "flex", gap: "1rem" }}>
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                 {[
                   { label: "Total Chats", value: chats.length, icon: MessageSquare, color: "#25D366" },
-                  { label: "Groups", value: chats.filter((c) => c.isGroup).length, icon: Users, color: "#818CF8" },
-                  { label: "Contacts", value: chats.filter((c) => !c.isGroup).length, icon: UserIcon, color: "#22D3EE" },
+                  { label: "Personal", value: chats.filter((c) => (c.kind || (c.isGroup ? "group" : "personal")) === "personal").length, icon: UserIcon, color: "#22D3EE" },
+                  { label: "Groups", value: chats.filter((c) => (c.kind || (c.isGroup ? "group" : "personal")) === "group").length, icon: Users, color: "#818CF8" },
+                  { label: "Communities", value: chats.filter((c) => c.kind === "community").length, icon: Network, color: "#A78BFA" },
+                  { label: "Channels", value: chats.filter((c) => c.kind === "channel").length, icon: Radio, color: "#F59E0B" },
+                  { label: "Media", value: chats.filter((c) => c.hasMedia).length, icon: ImageIcon, color: "#14B8A6" },
                 ].map((s) => (
                   <div key={s.label} style={{ padding: "0.5rem 1rem", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <s.icon size={14} color={s.color} />
@@ -500,64 +596,119 @@ export default function WhatsAppScanPage() {
                 </button>
                 <button onClick={scanAllChats} style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.625rem 1.5rem", borderRadius: "var(--radius-md)", background: "linear-gradient(135deg, #25D366, #128C7E)", border: "none", color: "white", fontSize: "0.8125rem", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-body)", boxShadow: "0 4px 16px rgba(37,211,102,0.3)", transition: "transform 150ms ease, box-shadow 150ms ease" }} onMouseEnter={(e) => { (e.target as HTMLElement).style.transform = "translateY(-1px)"; }} onMouseLeave={(e) => { (e.target as HTMLElement).style.transform = "translateY(0)"; }}>
                   <Scan size={16} />
-                  🔍 Scan All Chats
+                  Scan All Chats
                 </button>
               </div>
             </div>
 
-            {/* Search */}
-            <div style={{ position: "relative", marginBottom: "1rem" }}>
-              <Search size={16} style={{ position: "absolute", left: "0.875rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-              <input
-                type="text"
-                placeholder="Search chats..."
-                value={chatSearch}
-                onChange={(e) => setChatSearch(e.target.value)}
-                style={{ width: "100%", padding: "0.625rem 0.875rem 0.625rem 2.5rem", borderRadius: "var(--radius-md)", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", color: "var(--text-primary)", fontSize: "0.8125rem", fontFamily: "var(--font-body)", outline: "none" }}
-              />
-            </div>
+            <div className="wa-scan-grid" style={{ display: "grid", gridTemplateColumns: "minmax(280px, 360px) 1fr", gap: "1rem", minHeight: "580px" }}>
+              <section style={{ borderRadius: "var(--radius-lg)", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                <div style={{ position: "relative", padding: "0.75rem", borderBottom: "1px solid var(--bg-border)" }}>
+                  <Search size={15} style={{ position: "absolute", left: "1.5rem", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+                  <input
+                    type="text"
+                    placeholder="Search chats, groups, communities..."
+                    value={chatSearch}
+                    onChange={(e) => setChatSearch(e.target.value)}
+                    style={{ width: "100%", padding: "0.625rem 0.875rem 0.625rem 2.25rem", borderRadius: "var(--radius-md)", background: "var(--bg-primary)", border: "1px solid var(--bg-border)", color: "var(--text-primary)", fontSize: "0.8125rem", fontFamily: "var(--font-body)", outline: "none" }}
+                  />
+                </div>
 
-            {/* Chat list */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {filteredChats.map((chat) => (
-                <div key={chat.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", transition: "border-color 150ms ease" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, minWidth: 0 }}>
-                    <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: chat.isGroup ? "rgba(129,140,248,0.15)" : "rgba(34,211,238,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {chat.isGroup ? <Users size={16} color="#818CF8" /> : <UserIcon size={16} color="#22D3EE" />}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{chat.name}</p>
-                      {chat.lastMessage && (
-                        <p style={{ fontSize: "0.6875rem", color: "var(--text-muted)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "300px" }}>
-                          {chat.lastMessage}
-                        </p>
+                <div style={{ overflowY: "auto", padding: "0.5rem", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+                  {filteredChats.map((chat) => {
+                    const kind = chat.kind || (chat.isGroup ? "group" : "personal");
+                    const meta = chatKindMeta[kind as keyof typeof chatKindMeta] || chatKindMeta.personal;
+                    const Icon = meta.icon;
+                    const isSelected = selectedChat?.id === chat.id;
+                    return (
+                      <button key={chat.id} onClick={() => openChat(chat)} style={{ display: "flex", alignItems: "center", gap: "0.75rem", width: "100%", padding: "0.75rem", borderRadius: "var(--radius-md)", background: isSelected ? "rgba(37,211,102,0.08)" : "transparent", border: `1px solid ${isSelected ? "rgba(37,211,102,0.25)" : "transparent"}`, cursor: "pointer", textAlign: "left", fontFamily: "var(--font-body)" }}>
+                        <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: meta.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <Icon size={16} color={meta.color} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginBottom: "0.125rem" }}>
+                            <p style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-primary)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{chat.name}</p>
+                            {chat.hasMedia && <ImageIcon size={12} color="#14B8A6" style={{ flexShrink: 0 }} />}
+                          </div>
+                          <p style={{ fontSize: "0.6875rem", color: "var(--text-muted)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {chat.lastMessage || `${meta.label} chat`}
+                          </p>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
+                          <span style={{ fontSize: "0.625rem", color: "var(--text-muted)" }}>{chat.messageCount || 0}</span>
+                          {chat.unreadCount > 0 && (
+                            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", minWidth: "20px", height: "20px", borderRadius: "999px", background: "#25D366", color: "white", fontSize: "0.625rem", fontWeight: 700, padding: "0 0.25rem" }}>{chat.unreadCount}</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  {filteredChats.length === 0 && (
+                    <div style={{ padding: "3rem 1rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                      {chats.length === 0 ? (
+                        <>
+                          <Loader2 size={24} style={{ margin: "0 auto 0.75rem", display: "block", animation: "spin 1.5s linear infinite" }} color="var(--text-muted)" />
+                          Loading chats...
+                        </>
+                      ) : (
+                        "No chats match your search"
                       )}
                     </div>
-                    {chat.unreadCount > 0 && (
-                      <span style={{ display: "flex", alignItems: "center", justifyContent: "center", minWidth: "20px", height: "20px", borderRadius: "999px", background: "#25D366", color: "white", fontSize: "0.625rem", fontWeight: 700, padding: "0 0.25rem" }}>
-                        {chat.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <button onClick={() => scanChat(chat)} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.375rem 0.875rem", borderRadius: "var(--radius-md)", background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.2)", color: "#25D366", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)", marginLeft: "0.75rem", flexShrink: 0, transition: "background 150ms ease" }}>
-                    <Scan size={13} />
-                    Scan
-                  </button>
-                </div>
-              ))}
-
-              {filteredChats.length === 0 && (
-                <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.875rem" }}>
-                  {chats.length === 0 ? (
-                    <>
-                      <Loader2 size={24} style={{ margin: "0 auto 0.75rem", display: "block", animation: "spin 1.5s linear infinite" }} color="var(--text-muted)" />
-                      Loading chats...
-                    </>
-                  ) : (
-                    "No chats match your search"
                   )}
                 </div>
-              )}
+              </section>
+
+              <section style={{ borderRadius: "var(--radius-lg)", background: "var(--bg-secondary)", border: "1px solid var(--bg-border)", overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 }}>
+                {selectedChat ? (
+                  <>
+                    <div style={{ padding: "0.875rem 1rem", borderBottom: "1px solid var(--bg-border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.125rem" }}>
+                          <h3 style={{ fontSize: "0.9375rem", fontWeight: 800, color: "var(--text-primary)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedChat.name}</h3>
+                          <ChatKindBadge chat={selectedChat} />
+                        </div>
+                        <p style={{ fontSize: "0.6875rem", color: "var(--text-muted)", margin: 0 }}>
+                          {selectedMessages.length} loaded messages · {selectedMessages.filter((m) => m.media?.kind && m.media.kind !== "text").length} media items
+                        </p>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                        <button onClick={() => openChat(selectedChat, false)} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.5rem 0.875rem", borderRadius: "var(--radius-md)", background: "var(--bg-primary)", border: "1px solid var(--bg-border)", color: "var(--text-secondary)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", fontFamily: "var(--font-body)" }}>
+                          <RefreshCw size={13} />
+                          Refresh
+                        </button>
+                        <button onClick={() => scanChat(selectedChat)} style={{ display: "flex", alignItems: "center", gap: "0.375rem", padding: "0.5rem 1rem", borderRadius: "var(--radius-md)", background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.25)", color: "#25D366", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-body)" }}>
+                          <Scan size={13} />
+                          Scan This Chat
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: "auto", padding: "1rem", background: "var(--bg-primary)" }}>
+                      {loadingMessages ? (
+                        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "0.8125rem", gap: "0.5rem" }}>
+                          <Loader2 size={18} style={{ animation: "spin 1.5s linear infinite" }} />
+                          Loading messages...
+                        </div>
+                      ) : selectedMessages.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+                          {selectedMessages.map((message) => (
+                            <ChatMessageBubble key={message.id} message={message} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", color: "var(--text-muted)", fontSize: "0.8125rem", padding: "2rem" }}>
+                          No synced messages yet. Keep WhatsApp connected for a few seconds, then refresh this chat.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", color: "var(--text-muted)", padding: "2rem" }}>
+                    Select a chat to view messages and media.
+                  </div>
+                )}
+              </section>
             </div>
           </div>
         )}
@@ -812,12 +963,114 @@ export default function WhatsAppScanPage() {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(350%); }
         }
+        @media (max-width: 980px) {
+          .wa-scan-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
       `}</style>
     </div>
   );
 }
 
 // ── Flagged Message Card ────────────────────────────────────────────────────
+
+function ChatKindBadge({ chat }: { chat: WhatsAppChat }) {
+  const kind = chat.kind || (chat.isGroup ? "group" : "personal");
+  const meta = chatKindMeta[kind as keyof typeof chatKindMeta] || chatKindMeta.personal;
+  const Icon = meta.icon;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", padding: "0.15rem 0.45rem", borderRadius: "999px", background: meta.bg, color: meta.color, fontSize: "0.625rem", fontWeight: 700 }}>
+      <Icon size={11} />
+      {meta.label}
+    </span>
+  );
+}
+
+function MediaPreview({ message }: { message: WhatsAppMessage }) {
+  const media = message.media;
+  if (!media || media.kind === "text") return null;
+
+  const label = media.fileName || media.caption || `${media.kind} message`;
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.5rem 0.625rem",
+    borderRadius: "6px",
+    background: "rgba(15,23,42,0.14)",
+    border: "1px solid var(--bg-border)",
+    fontSize: "0.75rem",
+    color: "var(--text-secondary)",
+    marginTop: message.body ? "0.5rem" : 0,
+  };
+
+  if ((media.kind === "image" || media.kind === "sticker") && media.dataUrl) {
+    return (
+      <img
+        src={media.dataUrl}
+        alt={label}
+        style={{ display: "block", maxWidth: "260px", maxHeight: "260px", borderRadius: "8px", objectFit: "contain", marginTop: message.body ? "0.5rem" : 0, border: "1px solid var(--bg-border)" }}
+      />
+    );
+  }
+
+  if (media.kind === "video" && media.dataUrl) {
+    return <video src={media.dataUrl} controls style={{ display: "block", maxWidth: "320px", borderRadius: "8px", marginTop: message.body ? "0.5rem" : 0 }} />;
+  }
+
+  if (media.kind === "audio" && media.dataUrl) {
+    return <audio src={media.dataUrl} controls style={{ display: "block", width: "260px", marginTop: message.body ? "0.5rem" : 0 }} />;
+  }
+
+  const icon =
+    media.kind === "image" || media.kind === "sticker" ? ImageIcon :
+    media.kind === "video" ? Video :
+    media.kind === "audio" ? Mic :
+    media.kind === "location" ? MapPin :
+    media.kind === "contact" ? Contact :
+    FileText;
+  const Icon = icon;
+
+  return (
+    <div style={rowStyle}>
+      <Icon size={15} color="#14B8A6" style={{ flexShrink: 0 }} />
+      <div style={{ minWidth: 0 }}>
+        <p style={{ margin: 0, color: "var(--text-primary)", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</p>
+        <p style={{ margin: 0, fontSize: "0.625rem", color: "var(--text-muted)" }}>
+          {media.mimeType || media.kind}
+          {media.fileLength ? ` · ${(media.fileLength / 1024).toFixed(0)} KB` : ""}
+          {media.latitude !== undefined && media.longitude !== undefined ? ` · ${media.latitude}, ${media.longitude}` : ""}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ChatMessageBubble({ message }: { message: WhatsAppMessage }) {
+  const fromMe = message.fromMe;
+  const text = message.body || (!message.media || message.media.kind === "text" ? message.preview : "");
+  return (
+    <div style={{ display: "flex", justifyContent: fromMe ? "flex-end" : "flex-start" }}>
+      <div style={{ maxWidth: "72%", minWidth: "160px", padding: "0.625rem 0.75rem", borderRadius: fromMe ? "8px 8px 2px 8px" : "8px 8px 8px 2px", background: fromMe ? "rgba(37,211,102,0.13)" : "var(--bg-secondary)", border: `1px solid ${fromMe ? "rgba(37,211,102,0.24)" : "var(--bg-border)"}` }}>
+        {!fromMe && message.author && (
+          <p style={{ fontSize: "0.625rem", color: "#818CF8", fontWeight: 700, margin: "0 0 0.25rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {message.author}
+          </p>
+        )}
+        {text && (
+          <p style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.45, margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            {text}
+          </p>
+        )}
+        <MediaPreview message={message} />
+        <p style={{ fontSize: "0.625rem", color: "var(--text-muted)", textAlign: "right", margin: "0.375rem 0 0" }}>
+          {formatTime(message.timestamp)}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function FlaggedMessageCard({ fm, compact }: { fm: FlaggedMessage; compact?: boolean }) {
   const c = riskColors[fm.risk_level] || riskColors.low;

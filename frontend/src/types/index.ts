@@ -266,11 +266,31 @@ export interface WhatsAppStatus {
 
 export interface WhatsAppChat {
   id: string;
+  kind?: "personal" | "group" | "community" | "channel";
   name: string;
   isGroup: boolean;
   timestamp: number | null;
   unreadCount: number;
   lastMessage: string | null;
+  messageCount?: number;
+  hasMedia?: boolean;
+}
+
+export interface WhatsAppMedia {
+  kind: "text" | "image" | "video" | "audio" | "document" | "sticker" | "location" | "contact" | string;
+  contentType?: string;
+  mimeType?: string | null;
+  fileName?: string | null;
+  caption?: string;
+  fileLength?: number | null;
+  seconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  latitude?: number;
+  longitude?: number;
+  hasPreview?: boolean;
+  dataUrl?: string | null;
+  downloadError?: string;
 }
 
 export interface WhatsAppMessage {
@@ -278,9 +298,11 @@ export interface WhatsAppMessage {
   from: string;
   author?: string;
   body: string;
+  preview?: string;
   timestamp: number;
   fromMe: boolean;
   type: string;
+  media?: WhatsAppMedia;
 }
 
 export interface FlaggedMessage {
@@ -290,6 +312,8 @@ export interface FlaggedMessage {
   threat_type: string;
   explanation: string;
   recommendation: string;
+  message_type?: string;
+  media_kind?: string | null;
 }
 
 export interface ChatAnalysisResult {
@@ -300,6 +324,7 @@ export interface ChatAnalysisResult {
   flagged_messages: FlaggedMessage[];
   key_findings: string[];
   total_messages_scanned: number;
+  media_messages_scanned?: number;
   flagged_count: number;
   scan_time_ms: number;
   groq_called?: boolean;

@@ -295,7 +295,7 @@ export const clearWhatsAppSession = () =>
 
 export const getWhatsAppMessages = (chatId: string, limit?: number) =>
   api
-    .get<ApiResponse<{ messages: import("@/types").WhatsAppMessage[]; chatName: string }>>(
+    .get<ApiResponse<{ messages: import("@/types").WhatsAppMessage[]; chatName: string; kind?: string }>>(
       `/api/v1/whatsapp/chat/${chatId}/messages`,
       { params: { limit: limit ?? 100 } },
     )

@@ -11,6 +11,7 @@ import {
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { useAuth } from "@/components/providers/AuthContext";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { CitizenSidebar } from "@/components/layout/CitizenSidebar";
 
 
 
@@ -65,10 +66,9 @@ export default function JaalPage() {
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        // Not logged in — go to admin login
+        // Not logged in — go to admin login.
         window.location.href = "/admin";
       } else if (!user.isAdmin) {
-        // Citizen user — redirect to citizen portal
         window.location.href = "/dashboard";
       }
     }
@@ -95,7 +95,7 @@ export default function JaalPage() {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", backgroundColor: "var(--bg-primary)" }}>
-      <AdminSidebar />
+      {user.isAdmin ? <AdminSidebar /> : <CitizenSidebar />}
       <main style={{ marginLeft: "240px", flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
         {/* Header */}
         <div style={{ padding: "1.5rem 2rem 1rem", borderBottom: "1px solid var(--bg-border)", backgroundColor: "var(--bg-secondary)", flexShrink: 0 }}>
