@@ -604,10 +604,4 @@ Build an AI-powered digital public safety intelligence platform that equips law 
 - lead time before victimisation
 - auditability of intelligence packages for legal admissibility
 
----
 
-## License
-
-See the repository’s upstream license or project terms if present.
-
-Built for a hackathon and intended for demonstration purposes. Not for production deployment without replacing mock service logic with validated AI models and appropriate data governance.
