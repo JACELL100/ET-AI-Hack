@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { AuthProvider } from "@/components/providers/AuthContext";
 import { Navbar } from "@/components/layout/Navbar";
+import { VoiceAgent } from "@/components/voice/VoiceAgent";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -56,6 +57,7 @@ export default function RootLayout({
           <AuthProvider>
             <Navbar />
             <main>{children}</main>
+            <VoiceAgent />
           </AuthProvider>
         </ThemeProvider>
       </body>

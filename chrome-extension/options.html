@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAKSHA AI Companion settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icons/icon-128.png" alt="" />
+        <div><h1>RAKSHA AI Companion</h1><p>Configure the portal this extension opens and controls.</p></div>
+      </header>
+      <section>
+        <label for="site-url">RAKSHA portal URL</label>
+        <input id="site-url" type="url" inputmode="url" placeholder="https://portal.example.com" autocomplete="url" />
+        <p class="hint">Use the HTTPS address of your deployed RAKSHA frontend. For local development, <code>http://localhost:3000</code> is supported.</p>
+        <div class="actions"><button id="save" type="button">Save settings</button><button id="open" type="button" class="secondary">Open portal</button></div>
+        <p id="result" role="status" aria-live="polite"></p>
+      </section>
+      <section class="privacy">
+        <h2>Permissions and privacy</h2>
+        <p>The companion only reads the active RAKSHA page after you use its voice button. The selected portal address is stored in Chrome Sync. Spoken commands are handled through Chrome’s speech-recognition service and are passed to the active RAKSHA page; the extension does not run its own analytics or send data to a separate server.</p>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

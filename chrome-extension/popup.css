@@ -1,0 +1,20 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { width: 372px; margin: 0; background: #0d1422; color: #f8fafc; font-family: Inter, Arial, sans-serif; }
+main { padding: 18px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-icon { width: 36px; height: 36px; }
+strong { display: block; font-size: 15px; }
+small { color: #8ba0be; font-size: 11px; }
+#message { min-height: 32px; color: #c6d1df; font-size: 12px; line-height: 1.45; margin: 7px 0 11px; }
+#listen { width: 100%; border: 0; border-radius: 9px; padding: 12px; background: #e63a1e; color: white; cursor: pointer; font-weight: 700; font-size: 13px; }
+#listen.listening { background: #475569; }
+.site-row { display: flex; gap: 6px; margin: 15px 0 8px; }
+.site-row input { min-width: 0; flex: 1; border: 1px solid #2c3b52; border-radius: 7px; padding: 8px; background: #111c2d; color: #e8edf5; font-size: 11px; }
+.site-row button, .open-home, .settings { border: 1px solid #2c3b52; border-radius: 7px; background: #1b2a40; color: #e8edf5; cursor: pointer; font-size: 11px; font-weight: 700; }
+.site-row button { padding: 0 9px; }.open-home { width: 100%; padding: 8px; }
+.portal-actions { display: flex; gap: 6px; }.settings { padding: 8px 9px; }.site-hint { margin: -2px 0 9px; color: #8ba0be; font-size: 10px; line-height: 1.4; }.site-hint code { color: #c6d1df; }
+section { margin-top: 15px; } h2 { font-size: 11px; margin: 0 0 7px; color: #8ba0be; letter-spacing: .06em; text-transform: uppercase; }
+.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }.grid button { padding: 8px 6px; border-radius: 7px; border: 1px solid #2c3b52; background: #111c2d; color: #dbe5f0; cursor: pointer; font-size: 11px; text-align: left; }.grid button:hover { border-color: #e63a1e; }.grid .danger { color: #ff927d; }
+.voice-section { border-top: 1px solid #243044; padding-top: 13px; }.examples { margin: 10px 0 0; color: #8ba0be; font-size: 10px; line-height: 1.6; }
+button:focus-visible, input:focus-visible { outline: 2px solid #ff927d; outline-offset: 2px; }

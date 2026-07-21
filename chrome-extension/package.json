@@ -1,0 +1,10 @@
+{
+  "name": "raksha-ai-companion",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "icons": "node ./scripts/generate-icons.mjs",
+    "validate": "node ./scripts/validate-manifest.mjs",
+    "package": "npm run icons && npm run validate && powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/package.ps1"
+  }
+}

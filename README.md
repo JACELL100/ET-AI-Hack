@@ -285,6 +285,10 @@ npm run dev
 
 During `npm run dev`, Next.js proxies `/api/*` and `/ws/*` to `localhost:8000` automatically — no CORS configuration needed.
 
+### Chrome extension
+
+The deployable Manifest V3 companion lives in [`chrome-extension/`](./chrome-extension/). It provides module shortcuts and optional voice control for the configured RAKSHA portal. See its [deployment guide](./chrome-extension/README.md) to load it locally or generate the Chrome Web Store upload ZIP.
+
 ---
 
 ### 4. Verify everything is running

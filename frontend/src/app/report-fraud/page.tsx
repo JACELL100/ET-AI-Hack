@@ -26,6 +26,27 @@ export default function ReportFraudPage() {
     }
   }, [user, loading, registerCitizen]);
 
+  // VoiceAgent and the Chrome extension save a draft before navigating here.
+  // Keeping this bridge event-based also lets a user correct any field normally.
+  useEffect(() => {
+    const applyDraft = (draft: Partial<typeof form>) => setForm(current => ({ ...current, ...draft }));
+    try {
+      const saved = localStorage.getItem("raksha_voice_report_draft");
+      if (saved) applyDraft(JSON.parse(saved));
+    } catch { /* Ignore an invalid browser draft. */ }
+    const onDraft = (event: Event) => applyDraft((event as CustomEvent<Partial<typeof form>>).detail || {});
+    const onSubmitVoiceReport = () => {
+      const formElement = document.getElementById("fraud-report-form") as HTMLFormElement | null;
+      formElement?.requestSubmit();
+    };
+    window.addEventListener("raksha:report-draft", onDraft);
+    window.addEventListener("raksha:submit-fraud-report", onSubmitVoiceReport);
+    return () => {
+      window.removeEventListener("raksha:report-draft", onDraft);
+      window.removeEventListener("raksha:submit-fraud-report", onSubmitVoiceReport);
+    };
+  }, []);
+
   const set = (key: keyof typeof form, value: string) => setForm(current => ({ ...current, [key]: value }));
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -52,6 +73,7 @@ export default function ReportFraudPage() {
             reporterName: form.reporterName,
           }).catch(() => undefined);
         }
+        localStorage.removeItem("raksha_voice_report_draft");
         setDone(true);
       }
       else setError(result.error ?? "Submission failed. Please try again.");
@@ -74,7 +96,7 @@ export default function ReportFraudPage() {
           {done ? (
             <div style={{ padding: "3rem 1rem", textAlign: "center" }}><CheckCircle size={52} color="#10B981" /><h2 style={{ fontFamily: "var(--font-display)", color: "#10B981" }}>Report submitted</h2><p style={{ color: "var(--text-secondary)" }}>Thank you. Your report has been added to the incident intelligence feed.</p></div>
           ) : (
-            <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            <form id="fraud-report-form" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
               <div><label style={labelStyle}>Crime type</label><div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>{Object.keys(typeColors).map(type => <button key={type} type="button" onClick={() => set("type", type)} style={{ padding: "0.45rem 0.875rem", borderRadius: 100, border: `1px solid ${form.type === type ? typeColors[type] : "var(--bg-border)"}`, background: form.type === type ? `${typeColors[type]}18` : "transparent", color: form.type === type ? typeColors[type] : "var(--text-secondary)", cursor: "pointer", fontWeight: 700, textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "0.06em" }}>{type}</button>)}</div></div>
               <div><label htmlFor="description" style={labelStyle}>Description *</label><textarea id="description" required value={form.description} onChange={e => set("description", e.target.value)} rows={5} placeholder="Describe what happened — caller details, amount demanded, and method used..." style={{ ...fieldStyle, resize: "vertical" }} /></div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}><div><label htmlFor="district" style={labelStyle}>District *</label><input id="district" required value={form.district} onChange={e => set("district", e.target.value)} placeholder="e.g. Mumbai" style={fieldStyle} /></div><div><label htmlFor="state" style={labelStyle}>State *</label><select id="state" required value={form.state} onChange={e => set("state", e.target.value)} style={fieldStyle}><option value="">Select state</option>{states.map(state => <option key={state}>{state}</option>)}</select></div></div>

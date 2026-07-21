@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RAKSHA AI Companion</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <div class="brand"><img class="brand-icon" src="icons/icon-48.png" alt="" /><div><strong>RAKSHA AI</strong><small id="status">Project companion</small></div></div>
+      <div class="site-row"><input id="site-url" aria-label="RAKSHA website address" placeholder="https://your-raksha-portal.example" inputmode="url" /><button id="save-site" title="Save website address">Save</button></div>
+      <p class="site-hint">Use your deployed HTTPS portal address, or <code>http://localhost:3000</code> while developing.</p>
+      <div class="portal-actions"><button id="open-home" class="open-home" type="button">Open RAKSHA portal</button><button id="open-settings" class="settings" type="button" aria-label="Open extension settings">Settings</button></div>
+      <section><h2>Citizen portal</h2><div class="grid">
+        <button data-path="/dashboard">Dashboard</button><button data-path="/kavach">KAVACH</button><button data-path="/netra">NETRA</button><button data-path="/sentinel">SENTINEL</button><button data-path="/phone-safety">Phone Safety</button><button data-path="/jaal">JAAL Network</button><button data-path="/report-fraud" class="danger">Report Fraud</button>
+      </div></section>
+      <section><h2>Admin intelligence</h2><div class="grid">
+        <button data-path="/admin">Admin Panel</button><button data-path="/admin/sentinel">SENTINEL</button><button data-path="/admin/netra">NETRA</button><button data-path="/admin/jaal">JAAL</button><button data-path="/admin/drishti">DRISHTI</button>
+      </div></section>
+      <section class="voice-section"><h2>Voice control</h2><p id="message" aria-live="polite">Open a RAKSHA page, then use commands for any module or to prepare a fraud report.</p><button id="listen" type="button"><span>🎙</span> Start listening</button><p class="examples">“Take me to DRISHTI” · “Open phone safety”<br>“My district is Mumbai and state is Maharashtra”</p></section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
