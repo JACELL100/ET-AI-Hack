@@ -103,6 +103,14 @@ Several services persist operational state in SQLite or Supabase, while the live
 
 NETRA includes a release-gated registered-model flow. The backend will only use a model when its card, artifact hash, and validation thresholds are present and valid.
 
+### NETRA CNN model
+
+The repository includes a research-only CNN-based NETRA model exported as `active_model.keras` with its matching `active_model_card.json` inside `backend/data/netra/models/`.
+
+That model was trained from the Colab notebook in [`notebooks/NETRA_FICN_Training_Colab.ipynb`](notebooks/NETRA_FICN_Training_Colab.ipynb) on the Kaggle dataset [preetrank/indian-currency-real-vs-fake-notes-dataset](https://www.kaggle.com/datasets/preetrank/indian-currency-real-vs-fake-notes-dataset), which is listed there as CC BY-NC-SA 4.0 research data.
+
+In the current backend, NETRA uses this registered CNN as an additional release-gated signal alongside the CV/OCR feature pipeline. The model is only accepted when the model card, SHA-256 hash, and validation thresholds all pass the registry checks.
+
 ---
 
 ## Repository Layout
@@ -137,7 +145,7 @@ ET-AI-Hack/
 │   │   ├── netra_datasets/              # NETRA dataset contract and docs
 │   │   └── scenarios/                   # Scenario inputs and fixtures
 │   ├── data/
-│   │   └── netra/models/                # Registered NETRA model card + artifact
+│   │   └── netra/models/                # Registered NETRA CNN model card + artifact (active_model.keras + active_model_card.json)
 │   ├── data_runtime/                    # Runtime DBs, keys, and ledger files
 │   ├── scripts/                         # Utility scripts
 │   ├── supabase/                        # SQL schemas for persistent stores
@@ -150,7 +158,7 @@ ET-AI-Hack/
 ├── docs/                                # Architecture and evaluation docs
 ├── context/                             # Competition brief and planning inputs
 ├── feature_plans/                       # Feature-specific planning notes
-├── notebooks/                           # Training/export notebooks
+├── notebooks/                           # Training/export notebooks, including NETRA_FICN_Training_Colab.ipynb for the CNN model
 ├── whatsapp-bridge/                     # Node bridge for WhatsApp integration
 └── README.md
 ```
@@ -161,6 +169,8 @@ ET-AI-Hack/
 - `backend/app/services/sentinel_intelligence.py` handles signed live partner events.
 - `backend/app/services/netra_service.py` runs the multi-stage currency pipeline.
 - `backend/app/services/netra_model_service.py` handles the registered NETRA model card and artifact.
+- `backend/data/netra/models/active_model.keras` is the bundled CNN artifact exported by the training notebook.
+- `backend/data/netra/models/active_model_card.json` stores the release metadata, validation metrics, and artifact hash.
 - `backend/app/services/agency_feed_service.py` ingests signed agency feeds.
 - `backend/app/services/evidence_ledger.py` stores the signed evidence chain.
 
@@ -338,6 +348,8 @@ The backend reads [`backend/.env`](backend/.env) through `pydantic-settings`.
 | `NETRA_DATASET_DIR` | Training/evaluation dataset root | Must contain dataset folders with `manifest.jsonl` |
 | `NETRA_MIN_VALIDATION_ACCURACY` | Release gate | Accuracy threshold |
 | `NETRA_MAX_FALSE_POSITIVE_RATE` | Release gate | False-positive threshold |
+
+The bundled CNN model in `NETRA_MODEL_DIR` is tied to the Kaggle research dataset mentioned above. If you retrain it, keep the artifact card and hash in sync with the new file so the registry continues to accept it.
 
 ### Frontend `.env.local`
 
