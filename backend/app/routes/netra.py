@@ -20,7 +20,7 @@ from typing import Optional
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from app.models.schemas import NetraModelEvaluateRequest, NetraModelTrainRequest, NetraReportRequest, fail, ok
-from app.services import jaal_service, netra_model_service, netra_service
+from app.services import jaal_service, netra_service
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,8 @@ router = APIRouter(prefix="/netra", tags=["netra"])
 @router.get("/model/status")
 def model_status():
     """Return model-card status; ready means release gates passed."""
+    from app.services import netra_model_service
+
     return ok(netra_model_service.status())
 
 
@@ -37,6 +39,8 @@ def model_status():
 def train_model(payload: NetraModelTrainRequest):
     """Train from an approved server-side manifest, never arbitrary uploads."""
     try:
+        from app.services import netra_model_service
+
         return ok(netra_model_service.train(payload.datasetName, payload.modelName, payload.epochs, payload.learningRate))
     except (ValueError, RuntimeError) as exc:
         return fail(str(exc))
@@ -46,6 +50,8 @@ def train_model(payload: NetraModelTrainRequest):
 def evaluate_model(payload: NetraModelEvaluateRequest):
     """Report transparent labelled-data metrics for a registered model."""
     try:
+        from app.services import netra_model_service
+
         return ok(netra_model_service.evaluate(payload.datasetName))
     except (ValueError, RuntimeError) as exc:
         return fail(str(exc))
