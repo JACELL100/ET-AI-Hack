@@ -17,7 +17,7 @@ services:
       - key: PORT
         value: 10000
       - key: CORS_ORIGINS
-        value: http://localhost:3000,http://127.0.0.1:3000,https://raksha-ai-hack.vercel.app
+        value: https://raksha-ai-hack.vercel.app
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
