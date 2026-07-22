@@ -15,15 +15,20 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
   },
-  // Dev proxy: forward /api/* and /ws/* to the FastAPI backend (localhost:8000).
-  // This lets the frontend call relative paths (e.g. fetch("/api/v1/health"))
-  // during `next dev` without tripping CORS. In production, set
-  // NEXT_PUBLIC_API_URL to the Render backend URL so these rewrites keep
-  // working on Vercel too.
+  // ── API proxy ─────────────────────────────────────────────────────────
+  // Dev:  Proxies /api/* to localhost:8000 (avoids CORS during next dev).
+  // Prod: Proxies /api/* to your Render backend URL so the browser only
+  //       talks to the Vercel domain — no CORS issues at all.
+  //
+  //       Set NEXT_PUBLIC_API_URL in the Vercel dashboard:
+  //         https://your-backend.onrender.com
+  //
+  // NOTE: Vercel rewrites do NOT support WebSocket.  WebSocket connections
+  //       (SENTINEL stream, WhatsApp bridge) use NEXT_PUBLIC_WS_URL to
+  //       connect directly to the Render backend.
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${backendUrl}/api/:path*` },
-      { source: "/ws/:path*", destination: `${backendUrl}/ws/:path*` },
     ];
   },
 };

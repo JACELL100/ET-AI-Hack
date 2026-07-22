@@ -28,12 +28,28 @@ except ImportError:
 
 try:
     import numpy as np
+    _NUMPY_AVAILABLE = True
+except ImportError:
+    np = None  # type: ignore[assignment]
+    _NUMPY_AVAILABLE = False
+
+# Prefer tflite-runtime (tiny, ~2 MB) over full TensorFlow (~450 MB).
+_TFLITE_AVAILABLE = False
+_tflite_interpreter_class = None
+try:
+    from tflite_runtime.interpreter import Interpreter as _TFLiteInterpreter
+    _tflite_interpreter_class = _TFLiteInterpreter
+    _TFLITE_AVAILABLE = True
+except ImportError:
+    pass
+
+_TENSORFLOW_AVAILABLE = False
+tf = None  # type: ignore[assignment]
+try:
     import tensorflow as tf
     _TENSORFLOW_AVAILABLE = True
 except ImportError:
-    np = None  # type: ignore[assignment]
-    tf = None  # type: ignore[assignment]
-    _TENSORFLOW_AVAILABLE = False
+    pass
 
 
 FEATURE_WIDTH, FEATURE_HEIGHT = 24, 12
@@ -172,7 +188,9 @@ def status() -> dict[str, Any]:
         model_format = card.get("format", card.get("version", "NETRA-LINEAR-1"))
         if model_format == "NETRA-KERAS-1" and not _TENSORFLOW_AVAILABLE:
             issues.append("TensorFlow runtime is required for the registered NETRA-KERAS-1 model")
-        if model_format not in ("NETRA-LINEAR-1", "NETRA-KERAS-1"):
+        if model_format == "NETRA-TFLITE-1" and not (_TFLITE_AVAILABLE and _NUMPY_AVAILABLE):
+            issues.append("tflite-runtime and NumPy are required for the registered NETRA-TFLITE-1 model")
+        if model_format not in ("NETRA-LINEAR-1", "NETRA-KERAS-1", "NETRA-TFLITE-1"):
             issues.append(f"unsupported NETRA model format: {model_format}")
         feature_count = None
         if model_format == "NETRA-LINEAR-1":
@@ -239,6 +257,22 @@ def classify(image_bytes: bytes) -> dict[str, Any]:
         feature = _features(image_bytes)
         probability = _sigmoid(sum(weight * value for weight, value in zip(model["weights"], feature)) + float(model["bias"]))
         threshold = float(model.get("counterfeitThreshold", threshold))
+    elif model_format == "NETRA-TFLITE-1":
+        if not (_TFLITE_AVAILABLE and _PIL_AVAILABLE and _NUMPY_AVAILABLE and np is not None):
+            raise RuntimeError("tflite-runtime, NumPy and Pillow are required for NETRA-TFLITE-1 inference")
+        input_size = card.get("inputSize", [224, 224])
+        if not isinstance(input_size, list) or len(input_size) != 2:
+            raise ValueError("NETRA-TFLITE-1 model card has invalid inputSize")
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((int(input_size[0]), int(input_size[1])))
+        batch = np.expand_dims(np.asarray(image, dtype="float32") / 255.0, axis=0)
+        interpreter = _tflite_interpreter_class(model_path=str(artifact_path))
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+        interpreter.set_tensor(input_details[0]["index"], batch)
+        interpreter.invoke()
+        output = interpreter.get_tensor(output_details[0]["index"])
+        probability = float(np.ravel(output)[0])
     elif model_format == "NETRA-KERAS-1":
         if not (_TENSORFLOW_AVAILABLE and _PIL_AVAILABLE and np is not None):
             raise RuntimeError("TensorFlow, NumPy and Pillow are required for NETRA-KERAS-1 inference")
@@ -262,7 +296,7 @@ def evaluate(dataset_name: str) -> dict[str, Any]:
     if not state.get("ready"):
         raise ValueError("NETRA trained model is unavailable")
     card = json.loads(_card_path().read_text(encoding="utf-8"))
-    if card.get("format", card.get("version")) == "NETRA-KERAS-1":
+    if card.get("format", card.get("version")) in ("NETRA-KERAS-1", "NETRA-TFLITE-1"):
         return {"datasetName": dataset_name, "metrics": card.get("holdoutMetrics"), "model": state["model"], "evaluationMode": "Metrics are the signed Colab hold-out report in the imported model card; rerun Colab for an external evaluation set."}
     examples, manifest_hash = _load_manifest(dataset_name)
     model = json.loads(_artifact_path(card).read_text(encoding="utf-8"))

@@ -1,13 +1,40 @@
 services:
   - type: web
     name: raksha-ai-backend
-    env: docker
-    plan: starter
+    runtime: docker
+    plan: free
     rootDir: backend
     dockerfilePath: Dockerfile
     autoDeploy: true
     healthCheckPath: /health
-    disk:
-      name: raksha-ai-runtime
-      mountPath: /app/data_runtime
-      sizeGB: 1
+    envVars:
+      - key: WHATSAPP_BRIDGE_URL
+        value: http://localhost:3001
+      - key: SENTINEL_WHISPER_MODEL
+        value: tiny
+      - key: FASTAPI_DEBUG
+        value: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: NUMVERIFY_API_KEY
+        sync: false
+      - key: UPSTASH_VECTOR_REST_URL
+        sync: false
+      - key: UPSTASH_VECTOR_REST_TOKEN
+        sync: false
+      - key: FASTAPI_SECRET_KEY
+        generateValue: true
+      - key: INTEGRATION_HMAC_SECRET
+        generateValue: true
+      - key: AGENCY_FEED_HMAC_SECRET
+        generateValue: true

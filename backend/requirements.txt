@@ -1,4 +1,11 @@
-# RAKSHA AI — FastAPI Backend
+# RAKSHA AI — FastAPI Backend (deployment-optimised)
+# ─────────────────────────────────────────────────
+# Optimised for Render free tier (512 MB RAM).
+# Key changes vs local dev:
+#   • tensorflow-cpu  →  tflite-runtime  (~450 MB saved)
+#   • easyocr removed  (pytesseract only; ~1.5 GB saved)
+#   • PyTorch installed from CPU-only index (see Dockerfile)
+
 # Core API server + ASGI runtime
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
@@ -11,9 +18,12 @@ cryptography>=42.0.0
 # Image processing & CV
 opencv-python-headless==4.11.0.86
 Pillow>=10.4.0
-numpy>=1.26.0
-# Required only when deploying a NETRA-KERAS-1 artifact exported by the Colab workflow.
-tensorflow-cpu>=2.16,<2.19
+numpy>=1.26.0,<2.0.0
+
+# NETRA — TFLite runtime for CNN model inference (replaces tensorflow-cpu)
+# The .keras model is converted to .tflite at Docker build time.
+# For local dev with the .keras model, install tensorflow-cpu separately.
+tflite-runtime>=2.14.0; python_version < "3.12"
 
 # YOLOv12 (Ultralytics >= 8.3 supports YOLOv12)
 ultralytics>=8.3.0
@@ -22,16 +32,8 @@ ultralytics>=8.3.0
 supabase==2.15.0
 httpx==0.28.1
 
-# OCR — SPECIMEN & serial-number detection (Stage 0 of NETRA pipeline)
-# EasyOCR: Python-only, no system Tesseract required, ~1.5 GB models on first run
-easyocr>=1.7.0
-# pytesseract: lighter weight but requires tesseract-ocr system binary
-#   Windows: https://github.com/UB-Mannheim/tesseract/wiki
-#   Linux:   sudo apt install tesseract-ocr
+# OCR — Tesseract only (EasyOCR removed to save ~1.5 GB)
 pytesseract>=0.3.10
-
-# paddleocr is a third OCR fallback — large install, import-guarded
-# paddleocr>=2.7.0
 
 # SENTINEL — Speech-to-Text (Faster-Whisper)
 faster-whisper>=1.1.0
@@ -60,3 +62,5 @@ lxml>=5.0.0
 # KAVACH RAG — Upstash Vector DB client
 upstash-vector>=0.5.0
 
+# Process manager (runs FastAPI + WhatsApp bridge in single container)
+supervisor>=4.2.0

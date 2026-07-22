@@ -44,6 +44,8 @@ backend/*.pt
 
 # WhatsApp Bridge Auth (Baileys multi-device)
 whatsapp-bridge/.baileys_auth/
+backend/whatsapp-bridge/.baileys_auth/
+backend/whatsapp-bridge/node_modules/
 .baileys_auth/
 
 # pytest / coverage
@@ -111,3 +113,8 @@ whatsapp-bridge/.wwebjs_auth/
 whatsapp-bridge/.wwebjs_cache/
 whatsapp-bridge/.baileys_auth/
 whatsapp-bridge/.env
+
+# ========================
+# TFLite converted models (generated at Docker build time)
+# ========================
+*.tflite

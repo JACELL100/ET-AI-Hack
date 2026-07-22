@@ -36,7 +36,12 @@ os.environ.setdefault("HF_DATASETS_CACHE", os.path.join(_HF_CACHE, "datasets"))
 from typing import Optional
 
 from groq import Groq
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+    _ST_AVAILABLE = True
+except ImportError:
+    SentenceTransformer = None  # type: ignore[assignment,misc]
+    _ST_AVAILABLE = False
 from upstash_vector import Index
 from upstash_vector.types import SparseVector
 
@@ -57,6 +62,8 @@ class KavachRAG:
         )
 
         # Embedding model (384-dimensional)
+        if not _ST_AVAILABLE:
+            raise ImportError("sentence-transformers is required for KAVACH RAG (pip install sentence-transformers)")
         embedding_model_name = getattr(settings, "kavach_embedding_model", "all-MiniLM-L6-v2")
         self.embedding_model = SentenceTransformer(embedding_model_name)
 
