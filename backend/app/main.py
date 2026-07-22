@@ -11,6 +11,29 @@ or simply:
 """
 from __future__ import annotations
 
+# ── Redirect HuggingFace cache to a writable path BEFORE any HF imports ──────
+# Must happen here, at module load time, before faster-whisper / transformers
+# initialise their paths. Setting only in .env is insufficient because the
+# HF C-library reads the env at import time.
+import os as _os
+_HF_CACHE = _os.path.join(
+    _os.path.dirname(_os.path.dirname(__file__)),  # backend/
+    "data_runtime", "hf_cache",
+)
+_XET_LOG_DIR = _os.path.join(_HF_CACHE, "xet", "logs")
+_os.makedirs(_HF_CACHE, exist_ok=True)
+_os.makedirs(_XET_LOG_DIR, exist_ok=True)
+
+_os.environ["HF_HOME"] = _HF_CACHE
+_os.environ["HUGGINGFACE_HUB_CACHE"] = _os.path.join(_HF_CACHE, "hub")
+_os.environ["TRANSFORMERS_CACHE"] = _os.path.join(_HF_CACHE, "hub")
+_os.environ["SENTENCE_TRANSFORMERS_HOME"] = _HF_CACHE
+_os.environ["HF_XET_LOG_DIR"] = _XET_LOG_DIR
+_os.environ["XET_LOG_DIR"] = _XET_LOG_DIR
+_os.environ["HF_DATASETS_CACHE"] = _os.path.join(_HF_CACHE, "datasets")
+_os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+# ─────────────────────────────────────────────────────────────────────────────
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 

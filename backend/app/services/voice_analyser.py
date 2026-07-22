@@ -18,7 +18,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -28,13 +28,16 @@ logger = logging.getLogger(__name__)
 # Optional dependency
 # ---------------------------------------------------------------------------
 _LIBROSA_AVAILABLE = False
+librosa: Any = None
+sf: Any = None
+
 try:
-    import librosa  # type: ignore[import-untyped]
-    import soundfile as sf  # type: ignore[import-untyped]
+    import librosa as _librosa  # type: ignore[import-untyped]
+    import soundfile as _sf  # type: ignore[import-untyped]
+    librosa = _librosa
+    sf = _sf
     _LIBROSA_AVAILABLE = True
 except ImportError:
-    librosa = None  # type: ignore[assignment]
-    sf = None
     logger.warning("librosa / soundfile not installed — voice analysis will be mocked")
 
 
@@ -132,10 +135,25 @@ class VoiceAnalyser:
         if not _LIBROSA_AVAILABLE:
             return self._mock_analysis()
 
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(audio_bytes)
-            tmp.flush()
-            return self.analyse_file(tmp.name)
+        import os
+        tmp_name = None
+        # Use a local temporary directory inside backend/data_runtime to avoid Windows permission issues
+        local_temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data_runtime", "tmp")
+        os.makedirs(local_temp_dir, exist_ok=True)
+        try:
+            with tempfile.NamedTemporaryFile(suffix=suffix, dir=local_temp_dir, delete=False) as tmp:
+                tmp.write(audio_bytes)
+                tmp_name = tmp.name
+            return self.analyse_file(tmp_name)
+        except Exception as exc:
+            logger.error("Failed voice analysis on bytes: %s", exc)
+            return self._mock_analysis()
+        finally:
+            if tmp_name and os.path.exists(tmp_name):
+                try:
+                    os.remove(tmp_name)
+                except Exception:
+                    pass
 
     def _analyse_signal(
         self,
@@ -232,4 +250,5 @@ def get_voice_analyser() -> VoiceAnalyser:
     global _analyser
     if _analyser is None:
         _analyser = VoiceAnalyser()
+    assert _analyser is not None
     return _analyser

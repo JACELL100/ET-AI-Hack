@@ -12,7 +12,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class TranscriptionResult:
 # Try to import faster-whisper; gate behind a flag
 # ---------------------------------------------------------------------------
 _WHISPER_AVAILABLE = False
-_WhisperModel = None
+_WhisperModel: Any = None
 
 try:
     from faster_whisper import WhisperModel as _WM  # type: ignore[import-untyped]
@@ -85,7 +85,7 @@ class STTService:
         self.model_size = model_size
         self.device = device
         self.compute_type = compute_type
-        self._model = None
+        self._model: Any = None
         self._loaded = False
 
     # -- lazy loading so app startup isn't blocked ---------------------------
@@ -171,14 +171,25 @@ class STTService:
                 audio_bytes = wav_bytes
                 suffix = ".wav"
 
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(audio_bytes)
-            tmp.flush()
-            try:
-                return self.transcribe_file(tmp.name)
-            except Exception as exc:
-                logger.warning("Transcription failed for %s: %s", suffix, exc)
-                return self._mock_transcription()
+        import os
+        tmp_name = None
+        # Use a local temporary directory inside backend/data_runtime to avoid Windows permission issues
+        local_temp_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data_runtime", "tmp")
+        os.makedirs(local_temp_dir, exist_ok=True)
+        try:
+            with tempfile.NamedTemporaryFile(suffix=suffix, dir=local_temp_dir, delete=False) as tmp:
+                tmp.write(audio_bytes)
+                tmp_name = tmp.name
+            return self.transcribe_file(tmp_name)
+        except Exception as exc:
+            logger.warning("Transcription failed for %s: %s", suffix, exc)
+            return self._mock_transcription()
+        finally:
+            if tmp_name and os.path.exists(tmp_name):
+                try:
+                    os.remove(tmp_name)
+                except Exception:
+                    pass
 
     @staticmethod
     def _convert_to_wav(audio_bytes: bytes, suffix: str) -> bytes | None:
@@ -262,4 +273,5 @@ def get_stt_service(
     global _stt
     if _stt is None:
         _stt = STTService(model_size=model_size, device=device)
+    assert _stt is not None
     return _stt

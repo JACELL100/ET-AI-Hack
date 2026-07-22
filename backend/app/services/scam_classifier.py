@@ -236,6 +236,19 @@ class ScamClassifier:
 
         threat_score = round(min(100.0, combined), 1)
 
+        # Apply intent-based boosts for critical combinations (e.g., Authority Impersonation + Legal Threat)
+        if "LEGAL_THREAT" in intents:
+            # If they threaten legal action/arrest, it is at least SUSPICIOUS (min score 45)
+            threat_score = max(threat_score, 45.0)
+            
+            # If combined with Impersonation, Money Demand, or Intimidation, it is extremely likely to be a scam (min score 75)
+            high_risk_combos = {"IMPERSONATION", "MONEY_DEMAND", "INTIMIDATION"}
+            if any(intent in intents for intent in high_risk_combos):
+                threat_score = max(threat_score, 75.0)
+        elif "IMPERSONATION" in intents and "MONEY_DEMAND" in intents:
+            # Impersonating authority/official and demanding money
+            threat_score = max(threat_score, 75.0)
+
         # Verdict
         if threat_score >= 70:
             verdict = "SCAM"

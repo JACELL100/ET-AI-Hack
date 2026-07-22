@@ -246,13 +246,19 @@ class SentinelEngine:
 
         combined_score = round(min(100.0, nlp_component + sim_component + voice_component + base_component), 1)
 
-        # Final verdict
-        if combined_score >= self._threshold_high:
+        # Final verdict (must be at least as severe as the pure NLP verdict to prevent false negatives)
+        if combined_score >= self._threshold_high or cls.verdict == "SCAM":
             verdict = "SCAM"
-        elif combined_score >= self._threshold_medium:
+        elif combined_score >= self._threshold_medium or cls.verdict == "SUSPICIOUS":
             verdict = "SUSPICIOUS"
         else:
             verdict = "SAFE"
+
+        # Align combined_score with the final verdict so they are visually consistent
+        if verdict == "SCAM":
+            combined_score = max(combined_score, 70.0)
+        elif verdict == "SUSPICIOUS":
+            combined_score = max(combined_score, 40.0)
 
         elapsed = int((time.time() - t0) * 1000)
 

@@ -12,7 +12,7 @@ opencv-python-headless==4.11.0.86
 Pillow>=10.4.0
 numpy>=1.26.0
 # Required only when deploying a NETRA-KERAS-1 artifact exported by the Colab workflow.
-tensorflow-cpu>=2.16,<2.19
+tensorflow-cpu>=2.16
 
 # YOLOv12 (Ultralytics >= 8.3 supports YOLOv12)
 ultralytics>=8.3.0
