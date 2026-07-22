@@ -23,7 +23,11 @@ import type {
   User,
 } from "@/types";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Vercel environment values are often entered with a trailing slash.  Axios
+// normalises most requests, but URL strings used elsewhere do not, so keep one
+// canonical base URL across every API call.
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
+  .replace(/\/+$/, "");
 
 const api = axios.create({
   baseURL: BASE_URL,

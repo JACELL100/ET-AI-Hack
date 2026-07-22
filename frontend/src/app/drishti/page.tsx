@@ -26,7 +26,10 @@ const LeafletMap = dynamic(() => import("@/components/ui/DrishtiLeafletMap"), { 
 )});
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Avoid `//api/...` when NEXT_PUBLIC_API_URL has a trailing slash in Vercel.
+// FastAPI treats that as a different route and correctly returns 404.
+const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
+  .replace(/\/+$/, "");
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Incident {
