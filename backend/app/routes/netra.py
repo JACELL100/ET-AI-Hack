@@ -18,6 +18,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.models.schemas import NetraModelEvaluateRequest, NetraModelTrainRequest, NetraReportRequest, fail, ok
 from app.services import jaal_service, netra_service
@@ -80,7 +81,11 @@ async def scan_currency(
         return fail("Uploaded file is empty")
 
     try:
-        result = netra_service.scan_currency_image(image_bytes, denomination)
+        # The CV/OCR pipeline is CPU-bound.  Keep it off the ASGI event loop so
+        # stats, history, and health requests do not stall during a scan.
+        result = await run_in_threadpool(
+            netra_service.scan_currency_image, image_bytes, denomination
+        )
     except ValueError as exc:
         return fail(str(exc))
     except Exception:

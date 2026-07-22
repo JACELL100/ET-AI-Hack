@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     netra_dataset_dir: str = "data/netra/datasets"
     netra_min_validation_accuracy: float = 0.90
     netra_max_false_positive_rate: float = 0.05
+    # YOLO/PyTorch is optional enrichment.  The CV feature pipeline remains
+    # available without it and is the safe default for a 512 MB Render worker.
+    netra_enable_yolo: bool = False
 
     # NumVerify — Phone number carrier & owner lookup (numverify.com)
     numverify_api_key: str = ""          # Free: 1000 req/month — https://numverify.com

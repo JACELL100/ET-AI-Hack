@@ -91,7 +91,11 @@ except ImportError:
     _pytesseract_mod = None   # type: ignore[assignment]
     _TESSERACT_AVAILABLE = False
 
-_OCR_TIMEOUT_SEC: float = 10.0
+# A scan used to allow each of many OCR attempts to run for 10 seconds.  On a
+# Render free worker that made a single request exceed the browser timeout.
+# Keep each best-effort OCR attempt short; CV analysis remains available when
+# OCR cannot finish in this budget.
+_OCR_TIMEOUT_SEC: float = 2.5
 
 
 def _warm_up_tesseract() -> None:
@@ -109,13 +113,20 @@ def _warm_up_tesseract() -> None:
 _warm_up_tesseract()
 
 # ── YOLO ──────────────────────────────────────────────────────────────────────
-try:
-    from ultralytics import YOLO as _YOLOClass
-    _YOLO_AVAILABLE = True
-except Exception as _yolo_exc:
-    _YOLOClass = None           # type: ignore[assignment]
+from app.config import settings
+
+if settings.netra_enable_yolo:
+    try:
+        from ultralytics import YOLO as _YOLOClass
+        _YOLO_AVAILABLE = True
+    except Exception as _yolo_exc:
+        _YOLOClass = None           # type: ignore[assignment]
+        _YOLO_AVAILABLE = False
+        logger.warning("YOLO unavailable (%s)", _yolo_exc)
+else:
+    _YOLOClass = None               # type: ignore[assignment]
     _YOLO_AVAILABLE = False
-    logger.warning("YOLO unavailable (%s)", _yolo_exc)
+    logger.info("YOLO enrichment disabled; using the bounded CV feature pipeline")
 
 # ── Supabase ──────────────────────────────────────────────────────────────────
 try:
@@ -273,33 +284,6 @@ def _get_supabase() -> Any:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Timeout wrapper
-# ═════════════════════════════════════════════════════════════════════════════
-
-def _call_with_timeout(fn, *args, timeout: float = _OCR_TIMEOUT_SEC) -> Any:
-    """Run fn in a daemon thread; return None if it exceeds timeout seconds."""
-    result_box: dict[str, Any] = {"value": None, "done": False, "error": None}
-
-    def _runner():
-        try:
-            result_box["value"] = fn(*args)
-            result_box["done"] = True
-        except Exception as exc:
-            result_box["error"] = exc
-
-    t = threading.Thread(target=_runner, daemon=True, name="netra_tess")
-    t.start()
-    t.join(timeout)
-    if t.is_alive():
-        logger.warning("OCR timed out after %.1f s", timeout)
-        return None
-    if result_box["error"]:
-        logger.debug("OCR raised: %s", result_box["error"])
-        return None
-    return result_box["value"] if result_box["done"] else None
-
-
-# ═════════════════════════════════════════════════════════════════════════════
 # OCR helpers — Tesseract
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -308,12 +292,19 @@ def _tess_read(img_gray_or_binary: Any, config: str) -> str:
     if not (_TESSERACT_AVAILABLE and _pytesseract_mod):
         return ""
 
-    def _call(img=img_gray_or_binary, c=config):
+    try:
         from PIL import Image as _PIL
-        return _pytesseract_mod.image_to_string(_PIL.fromarray(img), config=c)
-
-    raw = _call_with_timeout(_call, timeout=_OCR_TIMEOUT_SEC) or ""
-    return raw.upper().strip()
+        raw = _pytesseract_mod.image_to_string(
+            _PIL.fromarray(img_gray_or_binary), config=config,
+            timeout=_OCR_TIMEOUT_SEC,
+        )
+        return raw.upper().strip()
+    except RuntimeError:
+        logger.warning("OCR timed out after %.1f s", _OCR_TIMEOUT_SEC)
+        return ""
+    except Exception as exc:
+        logger.debug("OCR raised: %s", exc)
+        return ""
 
 
 def _preprocess_for_ocr(gray: Any) -> Any:
@@ -345,12 +336,16 @@ def _ocr_full_image(img_bgr: Any) -> str:
     result = _run_tesseract(img_bgr, "--psm 6 --oem 3")
     if not result and _TESSERACT_AVAILABLE and _pytesseract_mod and img_bgr is not None:
         # Fallback: try on raw colour image (no heavy preprocessing)
-        def _raw():
+        try:
             from PIL import Image as _PIL
             import cv2 as _cv
             rgb = _cv.cvtColor(img_bgr, _cv.COLOR_BGR2RGB)
-            return _pytesseract_mod.image_to_string(_PIL.fromarray(rgb), config="--psm 3 --oem 3")
-        result = (_call_with_timeout(_raw, timeout=_OCR_TIMEOUT_SEC) or "").upper().strip()
+            result = _pytesseract_mod.image_to_string(
+                _PIL.fromarray(rgb), config="--psm 3 --oem 3",
+                timeout=_OCR_TIMEOUT_SEC,
+            ).upper().strip()
+        except (RuntimeError, OSError):
+            result = ""
     return result
 
 
@@ -362,8 +357,6 @@ def _extract_denomination_numeral_ocr(img_bgr: Any) -> str | None:
     regions = [
         img_bgr[int(h * 0.02): int(h * 0.35), int(w * 0.55): w],
         img_bgr[int(h * 0.65): int(h * 0.98), int(w * 0.55): w],
-        img_bgr[int(h * 0.02): int(h * 0.35), 0: int(w * 0.45)],
-        img_bgr[int(h * 0.65): int(h * 0.98), 0: int(w * 0.45)],
     ]
     _digits_re = re.compile(r"\b(2000|500|200|100|50|20|10)\b")
     for region in regions:
@@ -376,7 +369,7 @@ def _extract_denomination_numeral_ocr(img_bgr: Any) -> str | None:
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4, 4))
         gray  = clahe.apply(gray)
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        for psm in (8, 7):
+        for psm in (8,):
             cfg = f"--psm {psm} --oem 3 -c tessedit_char_whitelist=0123456789"
             raw = _tess_read(binary, cfg)
             m   = _digits_re.search(raw.replace(" ", ""))
@@ -602,16 +595,16 @@ def _ocr_serial_regions(img_bgr: Any) -> list[str]:
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(4, 4))
         gray  = clahe.apply(gray)
 
-        # 3 preprocessing variants
+        # Two variants provide a robust fast path.  The previous six passes per
+        # region could consume more than a minute on a small CPU instance.
         _, otsu_dk  = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY     + cv2.THRESH_OTSU)
-        _, otsu_lt  = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
         adapt       = cv2.adaptiveThreshold(gray, 255,
                                             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                             cv2.THRESH_BINARY, 17, 6)
         best_text = ""
 
-        for img_bin in (otsu_dk, otsu_lt, adapt):
-            for psm in (7, 8):
+        for img_bin in (otsu_dk, adapt):
+            for psm in (7,):
                 cfg = f"--psm {psm} --oem 3 -c tessedit_char_whitelist={whitelist}"
                 raw = _tess_read(img_bin, cfg)
                 txt = raw.replace(" ", "").replace("\n", "")
