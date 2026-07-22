@@ -277,6 +277,18 @@ export const getDrishtiLiveFeed = () =>
     .get<ApiResponse<LiveIncident[]>>("/api/v1/drishti/live")
     .then((r) => r.data);
 
+export const submitDrishtiCitizenReport = (payload: {
+  type: string;
+  description: string;
+  district: string;
+  state: string;
+  phone?: string;
+  reporterName?: string;
+}) =>
+  api
+    .post<ApiResponse<unknown>>("/api/v1/drishti/report", payload)
+    .then((r) => r.data);
+
 // ── KAVACH ────────────────────────────────────────────────────────────────────
 export const kavachChat = (message: string, sessionId: string) =>
   api

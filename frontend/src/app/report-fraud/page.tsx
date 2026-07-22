@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle, FileText, Send } from "lucide-react";
 import { useAuth } from "@/components/providers/AuthContext";
 import { CitizenSidebar } from "@/components/layout/CitizenSidebar";
-import { submitJaalCitizenReport } from "@/lib/api";
+import { submitDrishtiCitizenReport, submitJaalCitizenReport } from "@/lib/api";
 
 const states = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi", "Goa", "Gujarat", "Haryana", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Punjab", "Rajasthan", "Tamil Nadu", "Telangana", "Uttar Pradesh", "West Bengal",
@@ -56,8 +56,7 @@ export default function ReportFraudPage() {
     }
     setSubmitting(true); setError("");
     try {
-      const response = await fetch("/api/v1/drishti/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      const result = await response.json();
+      const result = await submitDrishtiCitizenReport(form);
       if (result.success) {
         // A reported suspect identifier is a JAAL trigger.  Keep the primary
         // crime report successful even when the optional correlation service

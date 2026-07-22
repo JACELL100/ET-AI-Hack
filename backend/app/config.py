@@ -25,7 +25,10 @@ class Settings(BaseSettings):
     backend_port: int = 8000
 
     # CORS
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "https://raksha-ai-hack.vercel.app"
+    )
     frontend_dev_url: str = "http://localhost:3000"
 
     # Supabase — set via environment variables or .env file
@@ -104,7 +107,14 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        # Render can retain an empty dashboard value after a Blueprint update.
+        # Never turn off CORS in that case; preserve the known production origin.
+        return origins or [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://raksha-ai-hack.vercel.app",
+        ]
 
 
 @lru_cache
